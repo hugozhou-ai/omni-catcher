@@ -1,5 +1,5 @@
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
-import type { Item } from "@omni-catcher/shared";
+import type { Item, ItemMetaUpdate } from "@omni-catcher/shared";
 import { Store } from "../platform/store.js";
 import type { IApiService } from "./apiService.js";
 
@@ -7,6 +7,7 @@ export interface ILibraryService {
   readonly items: Store<Item[]>;
   refresh(type?: string): Promise<void>;
   readItem(id: string): Promise<{ item: Item; markdown: string }>;
+  updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
 }
 
 export const ILibraryService = createServiceIdentifier<ILibraryService>("libraryService");
@@ -24,5 +25,12 @@ export class LibraryService implements ILibraryService {
 
   readItem(id: string): Promise<{ item: Item; markdown: string }> {
     return this.api.get<{ item: Item; markdown: string }>(`/api/items/${id}`);
+  }
+
+  async updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item> {
+    const data = await this.api.patch<{ item: Item }>(`/api/items/${id}`, update);
+    const current = this.items.get();
+    this.items.set(current.map((item) => (item.id === id ? data.item : item)));
+    return data.item;
   }
 }

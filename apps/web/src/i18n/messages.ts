@@ -32,6 +32,26 @@ export interface Messages {
   intentBookmark: string;
   intentTodo: string;
   intentMixed: string;
+  navHome: string;
+  navTodo: string;
+  navNote: string;
+  navBookmark: string;
+  urgency: string;
+  importance: string;
+  priorityLow: string;
+  priorityMedium: string;
+  priorityHigh: string;
+  sortCreated: string;
+  sortUrgency: string;
+  sortImportance: string;
+  filterUrgencyAll: string;
+  filterImportanceAll: string;
+  viewList: string;
+  viewMatrix: string;
+  matrixQ1: string;
+  matrixQ2: string;
+  matrixQ3: string;
+  matrixQ4: string;
 }
 
 export function normalizeLocale(value: string | null | undefined): Locale {

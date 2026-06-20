@@ -1,42 +1,45 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useService } from "./platform/react.js";
-import { useTranslation } from "./hooks/useTranslation.js";
-import { ILocalizationService } from "./services/localizationService.js";
-import { IWorkspaceService } from "./services/workspaceService.js";
-import { ICaptureService } from "./services/captureService.js";
-import { ILibraryService } from "./services/libraryService.js";
-import { CapturePanel } from "./features/capture/CapturePanel.js";
-import { PendingPanel } from "./features/pending/PendingPanel.js";
-import { LibraryPanel } from "./features/library/LibraryPanel.js";
 import { Toast } from "./components/Toast.js";
+import { Sidebar, type AppView } from "./components/Sidebar.js";
+import { CaptureHome } from "./features/capture/CaptureHome.js";
+import { TodoPanel } from "./features/todo/TodoPanel.js";
+import { CollectionPanel } from "./features/library/CollectionPanel.js";
+import { useService } from "./platform/react.js";
+import { ILocalizationService } from "./services/localizationService.js";
+import { ICaptureService } from "./services/captureService.js";
 
 export function App(): ReactNode {
-  const { t } = useTranslation();
   const localization = useService(ILocalizationService);
-  const workspace = useService(IWorkspaceService);
   const captureService = useService(ICaptureService);
-  const library = useService(ILibraryService);
-  const [workspaceName, setWorkspaceName] = useState("");
+  const [view, setView] = useState<AppView>("home");
 
   useEffect(() => {
     void localization.init();
-    void workspace.getContext().then((context) => setWorkspaceName(context?.workspaceName || ""));
     void captureService.refresh().then((classifying) => {
       if (classifying) captureService.startPolling();
     });
-    void library.refresh();
-  }, [localization, workspace, captureService, library]);
+  }, [localization, captureService]);
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <h1>{t("appName")}</h1>
-        <span className="meta">{workspaceName}</span>
-      </header>
-      <CapturePanel />
-      <PendingPanel />
-      <LibraryPanel />
+    <div className="shell">
+      <Sidebar active={view} onNavigate={setView} />
+      <main className={`main ${view === "home" ? "main-home" : ""}`}>{renderMain(view)}</main>
       <Toast />
     </div>
   );
+}
+
+function renderMain(view: AppView): ReactNode {
+  switch (view) {
+    case "home":
+      return <CaptureHome />;
+    case "todo":
+      return <TodoPanel />;
+    case "note":
+      return <CollectionPanel type="note" />;
+    case "bookmark":
+      return <CollectionPanel type="bookmark" />;
+    default:
+      return <CaptureHome />;
+  }
 }

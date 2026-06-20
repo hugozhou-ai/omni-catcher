@@ -3,6 +3,7 @@ import { createServiceIdentifier } from "@omni-catcher/shared/platform";
 export interface IApiService {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
+  patch<T>(path: string, body?: unknown): Promise<T>;
 }
 
 export const IApiService = createServiceIdentifier<IApiService>("apiService");
@@ -15,6 +16,14 @@ export class HttpApiService implements IApiService {
   post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>(path, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
+  patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

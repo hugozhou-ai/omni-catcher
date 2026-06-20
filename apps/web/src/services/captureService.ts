@@ -12,7 +12,7 @@ export interface ConfirmRequest {
 export interface ICaptureService {
   readonly captures: Store<Capture[]>;
   refresh(): Promise<boolean>;
-  create(content: string): Promise<void>;
+  create(content: string): Promise<Capture>;
   confirm(id: string, request: ConfirmRequest): Promise<ConfirmResult>;
   reject(id: string): Promise<void>;
   startPolling(): void;
@@ -34,10 +34,11 @@ export class WebCaptureService implements ICaptureService {
     return (data.captures || []).some((capture) => capture.status === "classifying");
   }
 
-  async create(content: string): Promise<void> {
-    await this.api.post("/api/capture", { content, source: "paste" });
+  async create(content: string): Promise<Capture> {
+    const data = await this.api.post<{ capture: Capture }>("/api/capture", { content, source: "paste" });
     await this.refresh();
     this.startPolling();
+    return data.capture;
   }
 
   async confirm(id: string, request: ConfirmRequest): Promise<ConfirmResult> {

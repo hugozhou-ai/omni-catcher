@@ -5,6 +5,48 @@ agent classifies the intent (note / bookmark / todo / mixed). After you confirm,
 result is saved as a local Markdown file you can browse, search, and reference with
 `@omni-catcher`.
 
+## UI
+
+The web UI is a single-page app with an icon-only sidebar and a main content area.
+
+```text
+┌──────┬─────────────────────────────────────────┐
+│ logo │  Capture home (default)                 │
+│ TODO │  · logo image above the input           │
+│ note │  · paste → Agent classifies → confirm   │
+│ link │                                         │
+└──────┴─────────────────────────────────────────┘
+```
+
+### Sidebar
+
+| Icon | View | Purpose |
+|------|------|---------|
+| Omni logo (`public/omni-catcher-logo.png`) | **Capture** | Home: paste content, run Agent classification, confirm once |
+| Checklist | **Todos** | Saved todos with filters, sort, and Eisenhower matrix |
+| Document | **Notes** | Note cards (title + summary) |
+| Bookmark | **Bookmarks** | Bookmark cards (title + summary) |
+
+### Capture flow (in-place decision card)
+
+There is no chat-style conversation UI — each capture is a single round trip:
+
+1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
+2. **Processing** — a quote of what you sent, spinner, and “Agent is classifying…”.
+3. **Review** — one **decision card** on the same screen: intent pills, editable title/tags, Agent summary, confirm or discard.
+4. **Done** — returns to idle with an empty input.
+
+If the Agent is unavailable, the card falls back to rule-based classification and shows a short “needs review” notice; you still pick the intent manually.
+
+### Library tabs
+
+- **Notes / Bookmarks** — card grid with `summary` from classification (stored in frontmatter and `index.jsonl`). Click a card to preview the Markdown body.
+- **Todos** — same card layout, plus **urgency** and **importance** (1–3). Toolbar supports filter/sort and a **List ↔ Matrix** toggle:
+  - **List** — filter by urgency/importance, sort by newest / urgency / importance.
+  - **Matrix** — Eisenhower 2×2 (important·urgent, important·not urgent, …). Drag a card into a quadrant to update its urgency/importance (`PATCH /api/items/:id`).
+
+Logo asset lives at `apps/web/public/omni-catcher-logo.png` and is served as `/omni-catcher-logo.png`.
+
 ## Architecture
 
 A `pnpm` monorepo with a VS Code–style service layer on both the server and the web app:
@@ -29,11 +71,15 @@ omni-catcher/
 │   │           ├── referenceService.ts     # @mention file search
 │   │           └── issueService.ts         # optional Tutti issue creation
 │   └── web/                    # React + Vite UI
+│       ├── public/             # omni-catcher-logo.png (capture home branding)
 │       └── src/
 │           ├── platform/        # React DI provider + observable Store
 │           ├── services/        # UI services (api/capture/library/...)
-│           ├── features/        # capture / pending / library panels
-│           ├── components/      # Badge, Spinner, Toast
+│           ├── components/      # Sidebar, ItemCard, Badge, Spinner, Toast
+│           ├── features/
+│           │   ├── capture/     # CaptureHome + DecisionCard
+│           │   ├── todo/        # TodoPanel (list + Eisenhower matrix)
+│           │   └── library/     # CollectionPanel (notes / bookmarks)
 │           └── i18n/            # en / zh-CN dictionaries
 ├── packages/
 │   └── shared/                 # contracts + DI platform reused by both apps
@@ -66,16 +112,15 @@ pnpm install
 pnpm dev            # builds shared, runs server (:3001) + web (:5173) with proxy
 ```
 
-Open http://localhost:5173. Without a real `TUTTI_CLI`, agent classification degrades to a
-rule-based fallback so the UI stays usable.
-
-Useful scripts:
-
 ```bash
 pnpm typecheck      # type-check every workspace
 pnpm build          # build shared + server + web
 pnpm package:tutti  # produce build/tutti-app/package (the runnable Tutti package)
+pnpm install:tutti  # same as node scripts/install-tutti-app.mjs (see below)
 ```
+
+Open http://localhost:5173 to exercise the sidebar + capture flow locally. Without a real
+`TUTTI_CLI`, agent classification degrades to a rule-based fallback so the UI stays usable.
 
 ## How it runs inside Tutti
 
@@ -103,8 +148,9 @@ node scripts/install-tutti-app.mjs --bump   # package -> import -> install -> la
 ```
 
 The script targets `$TUTTI_WORKSPACE_ID` (or the most recently opened workspace) and
-prints the launch URL plus the data/log paths. Open the app from the Tutti workbench to
-use the UI.
+prints the launch URL plus the data/log paths. Open the app from the Tutti workbench —
+use the **Omni logo** in the sidebar for capture, or the TODO / Notes / Bookmarks icons
+for library views.
 
 > **Reinstalling: always `--bump`.** The daemon keys installed packages by version and
 > will not overwrite an existing version with new contents, so every redeploy needs a new
@@ -135,8 +181,9 @@ daemon while debugging (e.g. `curl :<port>/api/items`).
 ### Choosing the agent provider
 
 Classification uses the daemon's default provider unless you pick one in the capture
-panel's **Agent** selector. If the default (often codex) is rate-limited, choose an
-available provider such as `claude-code`; the preference is stored per workspace.
+home **Agent** selector (bottom of the input area). If the default (often codex) is
+rate-limited, choose an available provider such as `claude-code`; the preference is
+stored per workspace in `$TUTTI_APP_DATA_DIR/settings.json` (`agentProvider`).
 
 ## CLI
 

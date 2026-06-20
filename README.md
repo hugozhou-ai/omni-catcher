@@ -22,7 +22,7 @@ omni-catcher/
 │   │       ├── http/routes.ts   # /api, /tutti/cli, /tutti/references
 │   │       └── services/        # domain services
 │   │           ├── tuttiCliService.ts      # $TUTTI_CLI invocation
-│   │           ├── agentService.ts         # agent start/poll/messages
+│   │           ├── agentService.ts         # agent start/poll/session-summary
 │   │           ├── classificationService.ts# rule preview + JSON parse
 │   │           ├── storageService.ts       # markdown + index.jsonl (+ mutex)
 │   │           ├── captureService.ts       # capture lifecycle orchestration
@@ -42,7 +42,9 @@ omni-catcher/
 │           ├── cli.ts           # CLI invoke envelope + output helpers
 │           ├── references.ts    # reference search contract
 │           └── platform/        # instantiation (DI) + log services
-├── scripts/package-tutti-app.mjs  # builds the runnable Tutti package
+├── scripts/
+│   ├── package-tutti-app.mjs   # builds the runnable Tutti package
+│   └── install-tutti-app.mjs   # installs/relaunches the package into Tutti (dev)
 ├── tutti.app.json              # manifest (cli + references.list/searchEndpoint)
 ├── tutti.cli.json              # CLI manifest (scope: omni-catcher)
 ├── bootstrap.sh                # production launcher (node server/server.js)
@@ -84,15 +86,68 @@ pnpm package:tutti  # produce build/tutti-app/package (the runnable Tutti packag
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
 There is no lightweight LLM endpoint in Tutti, so classification uses a full agent session
-(`agent start` → poll `agent get` → read `agent session-summary`). It runs on a background
-task; `POST /api/capture` returns immediately and the UI polls for the result.
+(`agent start` → poll `agent get` for failures → read `agent session-summary` for the
+completed assistant turn). It runs on a background task; `POST /api/capture` returns
+immediately and the UI polls for the result. ACP providers (e.g. claude-code) keep the
+session open after a turn, so completion is detected from the newest `completed` assistant
+message rather than the session status.
+
+## Install & debug in Tutti
+
+Start the Tutti desktop app first (it runs the local `tuttid` daemon). Then, from the
+repo root:
+
+```bash
+pnpm install
+node scripts/install-tutti-app.mjs --bump   # package -> import -> install -> launch
+```
+
+The script targets `$TUTTI_WORKSPACE_ID` (or the most recently opened workspace) and
+prints the launch URL plus the data/log paths. Open the app from the Tutti workbench to
+use the UI.
+
+> **Reinstalling: always `--bump`.** The daemon keys installed packages by version and
+> will not overwrite an existing version with new contents, so every redeploy needs a new
+> `tutti.app.json` version. `--bump` increments the patch version automatically.
+
+Useful flags: `--workspace <id>` to choose a workspace, `--no-package` to reinstall the
+current `build/tutti-app/package` without rebuilding.
+
+You can also install via the Tutti desktop App Center by importing a zip of
+`build/tutti-app/package` (it must contain `tutti.app.json` at the archive root and an
+executable `bootstrap.sh`).
+
+### Where to look when debugging
+
+For workspace `<ws>` and app id `omni-catcher`:
+
+```text
+~/.tutti/apps/workspaces/<ws>/omni-catcher/logs/runtime.log  # server stdout/stderr
+~/.tutti/apps/workspaces/<ws>/omni-catcher/logs/web.log      # webview diagnostics
+~/.tutti/apps/workspaces/<ws>/omni-catcher/data/             # saved markdown + index.jsonl
+~/.tutti/logs/tuttid.log                                     # daemon (agent + reference) logs
+```
+
+The server logs the agent provider, classification failures, and the runtime port
+(`[omni-catcher] listening on 127.0.0.1:<port>`) — hit that port directly to bypass the
+daemon while debugging (e.g. `curl :<port>/api/items`).
+
+### Choosing the agent provider
+
+Classification uses the daemon's default provider unless you pick one in the capture
+panel's **Agent** selector. If the default (often codex) is rate-limited, choose an
+available provider such as `claude-code`; the preference is stored per workspace.
 
 ## CLI
 
-Scope `omni-catcher` (see [COMMANDS.md](COMMANDS.md)):
+Scope `omni-catcher` (see [COMMANDS.md](COMMANDS.md)). Set `TUTTI_WORKSPACE_ID` so the CLI
+targets the workspace the app is installed in:
 
 ```bash
+export TUTTI_WORKSPACE_ID=<ws>
 tutti --json omni-catcher capture --content "..."
+tutti --json omni-catcher pending
+tutti --json omni-catcher confirm --id <capture-id> --intent note
 tutti --json omni-catcher list --type note
 tutti --json omni-catcher search --query "react"
 ```

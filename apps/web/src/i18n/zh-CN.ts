@@ -26,6 +26,8 @@ export const zhCN: Messages = {
   discarded: "已丢弃",
   providerReady: "Agent Provider：",
   providerNone: "无可用 Agent Provider —— 仅规则降级。",
+  providerLabel: "Agent",
+  providerDefaultOption: "默认",
   intentNote: "笔记",
   intentBookmark: "书签",
   intentTodo: "待办",

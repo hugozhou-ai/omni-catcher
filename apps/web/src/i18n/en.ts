@@ -26,6 +26,8 @@ export const en: Messages = {
   discarded: "Discarded",
   providerReady: "Agent provider: ",
   providerNone: "No agent provider available — rule-based fallback only.",
+  providerLabel: "Agent",
+  providerDefaultOption: "Default",
   intentNote: "Note",
   intentBookmark: "Bookmark",
   intentTodo: "Todo",

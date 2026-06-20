@@ -53,8 +53,15 @@ export class CaptureService implements ICaptureService {
     let capture = await this.storage.readCapture(id);
     if (!capture) return;
     try {
+      const settings = await this.storage.readSettings();
+      const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
       const prompt = await this.classification.classifyPrompt(capture.content);
-      const outcome = await this.agent.runPrompt(prompt, "Omni Catcher: classify", this.config.classifyTimeoutMs);
+      const outcome = await this.agent.runPrompt(
+        prompt,
+        "Omni Catcher: classify",
+        this.config.classifyTimeoutMs,
+        preferredProvider,
+      );
       const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
       if (!parsed.source) parsed.source = "agent";
       capture = (await this.storage.readCapture(id)) || capture;

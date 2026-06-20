@@ -11,17 +11,27 @@ export function CapturePanel(): ReactNode {
   const workspace = useService(IWorkspaceService);
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
+  const [providers, setProviders] = useState<string[]>([]);
   const [providerHint, setProviderHint] = useState("");
+  const [preferred, setPreferred] = useState("");
 
   useEffect(() => {
-    void workspace.getProviders().then((result) => {
-      setProviderHint(
-        result.available && result.providers.length
-          ? t("providerReady") + result.providers.map((p) => p.provider).join(", ")
-          : t("providerNone"),
-      );
-    });
+    void Promise.all([workspace.getProviders(), workspace.getPreferredProvider()]).then(
+      ([result, saved]) => {
+        const names = result.providers.map((p) => p.provider);
+        setProviders(names);
+        setPreferred(names.includes(saved) ? saved : "");
+        setProviderHint(
+          result.available && names.length ? "" : t("providerNone"),
+        );
+      },
+    );
   }, [workspace, t]);
+
+  function onProviderChange(value: string): void {
+    setPreferred(value);
+    void workspace.setPreferredProvider(value);
+  }
 
   async function submit(): Promise<void> {
     const text = content.trim();
@@ -51,7 +61,20 @@ export function CapturePanel(): ReactNode {
         onKeyDown={onKeyDown}
       />
       <div className="row end">
-        <span className="hint">{providerHint}</span>
+        {providerHint ? <span className="hint">{providerHint}</span> : null}
+        {providers.length ? (
+          <label className="provider-select">
+            <span className="hint">{t("providerLabel")}</span>
+            <select value={preferred} onChange={(event) => onProviderChange(event.target.value)}>
+              <option value="">{t("providerDefaultOption")}</option>
+              {providers.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <button className="primary" disabled={busy} onClick={() => void submit()}>
           {t("captureButton")}
         </button>

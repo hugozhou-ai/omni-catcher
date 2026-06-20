@@ -26,6 +26,8 @@ export interface Messages {
   discarded: string;
   providerReady: string;
   providerNone: string;
+  providerLabel: string;
+  providerDefaultOption: string;
   intentNote: string;
   intentBookmark: string;
   intentTodo: string;

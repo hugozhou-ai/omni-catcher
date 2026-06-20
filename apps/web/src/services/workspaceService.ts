@@ -5,6 +5,8 @@ import type { IApiService } from "./apiService.js";
 export interface IWorkspaceService {
   getContext(): Promise<WorkspaceContext | null>;
   getProviders(): Promise<AgentProvidersResult>;
+  getPreferredProvider(): Promise<string>;
+  setPreferredProvider(provider: string): Promise<void>;
 }
 
 export const IWorkspaceService = createServiceIdentifier<IWorkspaceService>("workspaceService");
@@ -26,5 +28,18 @@ export class WorkspaceService implements IWorkspaceService {
     } catch {
       return { available: false, providers: [], defaultProvider: "" };
     }
+  }
+
+  async getPreferredProvider(): Promise<string> {
+    try {
+      const settings = await this.api.get<Record<string, unknown>>("/api/settings");
+      return String(settings.agentProvider || "");
+    } catch {
+      return "";
+    }
+  }
+
+  async setPreferredProvider(provider: string): Promise<void> {
+    await this.api.post("/api/settings", { agentProvider: provider });
   }
 }

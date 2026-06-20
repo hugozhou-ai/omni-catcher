@@ -136,6 +136,23 @@ input[type="text"] {
   margin-top: 10px;
 }
 
+.provider-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.provider-select select {
+  font: inherit;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
 button {
   font: inherit;
   border: 1px solid var(--border-strong);

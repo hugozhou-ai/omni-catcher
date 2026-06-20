@@ -18,7 +18,7 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
 
 ## Packaged layout (what Tutti runs)
 
-- `tutti.app.json` — manifest (`tutti.app.manifest.v1`). Declares `cli.manifest` and `references.searchEndpoint`.
+- `tutti.app.json` — manifest (`tutti.app.manifest.v1`). Declares `cli.manifest`, `references.listEndpoint`, and `references.searchEndpoint`.
 - `tutti.cli.json` — CLI manifest (`tutti.app.cli.v1`), scope `omni-catcher`.
 - `bootstrap.sh` — launches `server/server.js` with `$TUTTI_APP_NODE`. No install/build work.
 - `server/server.js` — bundled Node server (all deps inlined; no `node_modules` needed).
@@ -60,7 +60,7 @@ scope this app only calls, never exposes.
 - `POST /api/captures/:id/confirm` `{intent?, edits?, writeIssue?}`, `POST /api/captures/:id/reject`.
 - `GET /api/items[?type=]`, `GET /api/items/:id`, `POST /api/rebuild-index`.
 - `POST /tutti/cli/:command` — CLI handlers (receive the `tutti.app.cli.invoke.v1` envelope; params in `input`).
-- `POST /tutti/references/search` — `@omni-catcher` file references (`location.type: app-data-relative`).
+- `POST /tutti/references/list` + `POST /tutti/references/search` — `@omni-catcher` file references. Each response is `{items, nextCursor}` where every item is a tagged wrapper `{type:"reference", reference:{kind:"file", location:{type:"app-data-relative", path}}}` (a bare file reference is silently dropped by the daemon).
 
 ## Modification guidance
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "tutti.app.manifest.v1",
   "appId": "omni-catcher",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "name": "Omni Catcher",
   "description": "Capture anything, let an agent classify it, confirm, and save as local Markdown notes, bookmarks, and todos.",
   "icon": {
@@ -16,6 +16,7 @@
     "manifest": "tutti.cli.json"
   },
   "references": {
+    "listEndpoint": "/tutti/references/list",
     "searchEndpoint": "/tutti/references/search"
   },
   "window": {

@@ -43,7 +43,7 @@ omni-catcher/
 │           ├── references.ts    # reference search contract
 │           └── platform/        # instantiation (DI) + log services
 ├── scripts/package-tutti-app.mjs  # builds the runnable Tutti package
-├── tutti.app.json              # manifest (cli + references.searchEndpoint)
+├── tutti.app.json              # manifest (cli + references.list/searchEndpoint)
 ├── tutti.cli.json              # CLI manifest (scope: omni-catcher)
 ├── bootstrap.sh                # production launcher (node server/server.js)
 ├── prompts/                    # agent prompt templates
@@ -80,11 +80,11 @@ pnpm package:tutti  # produce build/tutti-app/package (the runnable Tutti packag
 1. Tutti runs `bootstrap.sh` (no args) from the packaged app directory.
 2. `bootstrap.sh` launches `server/server.js` with `$TUTTI_APP_NODE`, binding `$TUTTI_APP_HOST:$TUTTI_APP_PORT`.
 3. The server serves the built web assets and the `/api`, `/tutti/cli/*`, and
-   `/tutti/references/search` endpoints.
+   `/tutti/references/{list,search}` endpoints.
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
 There is no lightweight LLM endpoint in Tutti, so classification uses a full agent session
-(`agent start` → poll `agent get` → read `agent session messages`). It runs on a background
+(`agent start` → poll `agent get` → read `agent session-summary`). It runs on a background
 task; `POST /api/capture` returns immediately and the UI polls for the result.
 
 ## CLI

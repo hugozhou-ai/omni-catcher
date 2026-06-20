@@ -40,7 +40,11 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   app.post("/api/settings", async (request) => {
     const body = (request.body || {}) as Record<string, unknown>;
     const settings = await storage.readSettings();
-    if ("provider" in body) settings.provider = normalizeProvider(body.provider);
+    if ("agentProvider" in body) {
+      const provider = normalizeProvider(body.agentProvider);
+      // Empty string clears the preference and falls back to the daemon default.
+      settings.agentProvider = provider;
+    }
     return storage.writeSettings(settings);
   });
 
@@ -93,6 +97,10 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
 
   app.post("/tutti/references/search", async (request) =>
     references.search((request.body || {}) as Record<string, unknown>),
+  );
+
+  app.post("/tutti/references/list", async (request) =>
+    references.list((request.body || {}) as Record<string, unknown>),
   );
 
   app.post<{ Params: { command: string } }>("/tutti/cli/:command", async (request, reply) => {

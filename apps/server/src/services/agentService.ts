@@ -12,7 +12,7 @@ export interface IAgentService {
   listProviders(): Promise<AgentProvidersResult>;
   resolveProvider(preferred?: string): Promise<string>;
   resolveModel(provider: string): Promise<string>;
-  runPrompt(prompt: string, title: string, timeoutMs: number): Promise<AgentRunResult>;
+  runPrompt(prompt: string, title: string, timeoutMs: number, preferred?: string): Promise<AgentRunResult>;
 }
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
@@ -78,8 +78,8 @@ export class AgentService implements IAgentService {
     }
   }
 
-  async runPrompt(prompt: string, title: string, timeoutMs: number): Promise<AgentRunResult> {
-    let provider = await this.resolveProvider();
+  async runPrompt(prompt: string, title: string, timeoutMs: number, preferred?: string): Promise<AgentRunResult> {
+    let provider = await this.resolveProvider(preferred);
     const model = await this.resolveModel(provider);
     const args = [
       "agent",
@@ -106,56 +106,48 @@ export class AgentService implements IAgentService {
     provider = normalizeProvider(startSession.provider) || provider;
 
     const deadline = Date.now() + timeoutMs;
-    let outcome: "succeeded" | "failed" | "canceled" | null = null;
-    let lastError = "";
     while (Date.now() < deadline) {
+      // Hard failures (e.g. provider rate limit) surface on the session record.
       const info = await this.cli.run(["agent", "get", "--session-id", sessionId], 30_000);
       const session = (info.session as Record<string, unknown>) || {};
-      lastError = String(session.lastError || "").trim();
-      outcome = classifyStatus(session.status);
-      if (outcome) break;
+      const status = String(session.status || "").trim().toLowerCase();
+      const lastError = String(session.lastError || "").trim();
+      if (["failed", "error", "errored"].includes(status)) {
+        throw new Error(lastError || "agent session failed");
+      }
+      if (["canceled", "cancelled"].includes(status)) {
+        throw new Error("agent session was canceled");
+      }
+
+      // ACP providers (e.g. claude-code) keep the session open after a turn, so the
+      // session status stays "created"/"running"; completion is detected from the
+      // assistant turn becoming the latest message with a "completed" status.
+      const text = await this.completedAssistantText(sessionId);
+      if (text) return { text, sessionId, provider };
       await delay(2000);
     }
-    if (outcome === null) throw new Error("agent timed out before producing a result");
-    if (outcome === "failed") throw new Error(lastError || "agent session failed");
-    if (outcome === "canceled") throw new Error("agent session was canceled");
-
-    const text = await this.latestAssistantText(sessionId);
-    if (!text) throw new Error("agent produced no output");
-    return { text, sessionId, provider };
+    throw new Error("agent timed out before producing a result");
   }
 
-  private async latestAssistantText(sessionId: string): Promise<string | null> {
+  private async completedAssistantText(sessionId: string): Promise<string | null> {
     const result = await this.cli.run(
       ["agent", "session-summary", "--session-id", sessionId, "--limit", "80"],
       30_000,
     );
+    const latestVersion = Number(result.latestVersion || 0);
     const messages = ((result.messages as unknown[]) || []).filter(
       (m): m is Record<string, unknown> => Boolean(m) && typeof m === "object",
     );
-    messages.sort((a, b) => Number(b.version || 0) - Number(a.version || 0));
-    for (const message of messages) {
-      const role = String(message.role || "").trim().toLowerCase();
-      const status = String(message.status || "").trim().toLowerCase();
-      if ((role === "assistant" || role === "agent") && status !== "failed") {
-        const text = messageText(message);
-        if (text) return text;
-      }
-    }
-    for (const message of messages) {
-      const text = messageText(message);
-      if (text) return text;
-    }
-    return null;
+    // The turn is finished only when the newest message is a completed assistant
+    // reply; while it is still streaming the latest message is in-progress.
+    const latest = messages.find((m) => Number(m.version || 0) === latestVersion);
+    if (!latest) return null;
+    const role = String(latest.role || "").trim().toLowerCase();
+    const status = String(latest.status || "").trim().toLowerCase();
+    if (role !== "assistant" && role !== "agent") return null;
+    if (status !== "completed") return null;
+    return messageText(latest);
   }
-}
-
-function classifyStatus(status: unknown): "succeeded" | "failed" | "canceled" | null {
-  const value = String(status || "").trim().toLowerCase();
-  if (["completed", "succeeded", "idle", "ready"].includes(value)) return "succeeded";
-  if (["failed", "error", "errored"].includes(value)) return "failed";
-  if (["canceled", "cancelled"].includes(value)) return "canceled";
-  return null;
 }
 
 function messageText(message: Record<string, unknown>): string | null {

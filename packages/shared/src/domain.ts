@@ -51,9 +51,12 @@ export interface Item {
   id: string;
   type: Intent;
   title: string;
+  summary?: string;
   path: string;
   status: "confirmed";
   tags: string[];
+  urgency?: PriorityLevel;
+  importance?: PriorityLevel;
   createdAt: string;
   confirmedAt: string;
 }
@@ -77,9 +80,19 @@ export interface WorkspaceContext {
   dataDir: string;
 }
 
+/** 1 = low, 2 = medium, 3 = high */
+export type PriorityLevel = 1 | 2 | 3;
+
 export interface ConfirmEdits {
   title?: string;
   tags?: string[];
+  urgency?: PriorityLevel;
+  importance?: PriorityLevel;
+}
+
+export interface ItemMetaUpdate {
+  urgency?: PriorityLevel;
+  importance?: PriorityLevel;
 }
 
 export interface ConfirmResult {

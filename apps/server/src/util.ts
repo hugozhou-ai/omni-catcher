@@ -40,9 +40,18 @@ export function extractUrls(text: string): string[] {
 export function firstNonemptyLine(text: string): string {
   for (const line of (text || "").split("\n")) {
     const trimmed = line.trim();
-    if (trimmed) return trimmed;
+    if (trimmed) return stripListMarker(trimmed);
   }
   return "";
+}
+
+/** Drop a leading markdown list / checkbox / heading marker so titles read cleanly. */
+export function stripListMarker(line: string): string {
+  return line
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^([-*+]|\d+[.)])\s+/, "")
+    .replace(/^\[[ xX]?\]\s+/, "")
+    .trim();
 }
 
 export function slugify(value: string, fallback: string): string {

@@ -273,7 +273,9 @@ function applyEdits(classification: Classification, edits: ConfirmEdits): Classi
 
 function yamlScalar(value: unknown): string {
   const text = String(value);
-  if (text === "" || /[:#[\]{}"'\n]/.test(text) || text !== text.trim()) {
+  // Quote when the value contains structural characters, has surrounding
+  // whitespace, or begins with a YAML indicator that would change its meaning.
+  if (text === "" || /[:#[\]{}"'\n]/.test(text) || /^[-?*&!|>%@`,]/.test(text) || text !== text.trim()) {
     return JSON.stringify(text);
   }
   return text;

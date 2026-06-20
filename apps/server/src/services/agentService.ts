@@ -11,6 +11,7 @@ export interface AgentRunResult {
 export interface IAgentService {
   listProviders(): Promise<AgentProvidersResult>;
   resolveProvider(preferred?: string): Promise<string>;
+  resolveModel(provider: string): Promise<string>;
   runPrompt(prompt: string, title: string, timeoutMs: number): Promise<AgentRunResult>;
 }
 
@@ -26,6 +27,8 @@ export function normalizeProvider(value: unknown): string {
 }
 
 export class AgentService implements IAgentService {
+  private readonly modelCache = new Map<string, string>();
+
   constructor(private readonly cli: ITuttiCliService) {}
 
   async listProviders(): Promise<AgentProvidersResult> {
@@ -60,66 +63,104 @@ export class AgentService implements IAgentService {
     return wanted || DEFAULT_PROVIDER;
   }
 
+  async resolveModel(provider: string): Promise<string> {
+    const cached = this.modelCache.get(provider);
+    if (cached) return cached;
+    try {
+      const result = await this.cli.run(["agent", "composer-options", "--provider", provider], 30_000);
+      const config = (result.modelConfig as Record<string, unknown>) || {};
+      const settings = (result.effectiveSettings as Record<string, unknown>) || {};
+      const model = String(config.defaultValue || config.currentValue || settings.model || "").trim();
+      if (model) this.modelCache.set(provider, model);
+      return model;
+    } catch {
+      return "";
+    }
+  }
+
   async runPrompt(prompt: string, title: string, timeoutMs: number): Promise<AgentRunResult> {
     let provider = await this.resolveProvider();
-    const start = await this.cli.run(
-      ["agent", "start", "--provider", provider, "--cwd", process.env.TUTTI_APP_DATA_DIR || process.cwd(),
-        "--title", title, "--prompt", prompt, "--visible"],
-      60_000,
-    );
-    const session = (start.session as Record<string, unknown>) || {};
-    const sessionId = String(session.id || "").trim();
+    const model = await this.resolveModel(provider);
+    const args = [
+      "agent",
+      "start",
+      "--provider",
+      provider,
+      "--prompt",
+      prompt,
+      "--title",
+      title,
+      "--visible",
+      "false",
+      "--permission-mode",
+      "auto",
+      "--cwd",
+      process.env.TUTTI_APP_DATA_DIR || process.cwd(),
+    ];
+    if (model) args.push("--model", model);
+
+    const start = await this.cli.run(args, 60_000);
+    const startSession = (start.session as Record<string, unknown>) || {};
+    const sessionId = String(startSession.agentSessionId || "").trim();
     if (!sessionId) throw new Error("agent session was not created");
-    provider = normalizeProvider(session.provider) || provider;
+    provider = normalizeProvider(startSession.provider) || provider;
 
     const deadline = Date.now() + timeoutMs;
-    let status: string | null = null;
+    let outcome: "succeeded" | "failed" | "canceled" | null = null;
+    let lastError = "";
     while (Date.now() < deadline) {
       const info = await this.cli.run(["agent", "get", "--session-id", sessionId], 30_000);
-      status = terminalStatus((info.session as Record<string, unknown>)?.status);
-      if (status) break;
+      const session = (info.session as Record<string, unknown>) || {};
+      lastError = String(session.lastError || "").trim();
+      outcome = classifyStatus(session.status);
+      if (outcome) break;
       await delay(2000);
     }
-    if (status === null) throw new Error("agent timed out before producing a result");
-    if (status !== "succeeded") throw new Error(`agent session ended with status: ${status}`);
+    if (outcome === null) throw new Error("agent timed out before producing a result");
+    if (outcome === "failed") throw new Error(lastError || "agent session failed");
+    if (outcome === "canceled") throw new Error("agent session was canceled");
 
-    const text = await this.latestSummary(sessionId);
+    const text = await this.latestAssistantText(sessionId);
     if (!text) throw new Error("agent produced no output");
     return { text, sessionId, provider };
   }
 
-  private async latestSummary(sessionId: string): Promise<string | null> {
+  private async latestAssistantText(sessionId: string): Promise<string | null> {
     const result = await this.cli.run(
-      ["agent", "session", "messages", "--session-id", sessionId, "--limit", "80"],
+      ["agent", "session-summary", "--session-id", sessionId, "--limit", "80"],
       30_000,
     );
     const messages = ((result.messages as unknown[]) || []).filter(
       (m): m is Record<string, unknown> => Boolean(m) && typeof m === "object",
     );
-    messages.sort(
-      (a, b) => Number(b.version || b.id || 0) - Number(a.version || a.id || 0),
-    );
+    messages.sort((a, b) => Number(b.version || 0) - Number(a.version || 0));
     for (const message of messages) {
       const role = String(message.role || "").trim().toLowerCase();
-      if (role === "assistant" || role === "agent") {
-        const text = extractMessageText(message.payload);
+      const status = String(message.status || "").trim().toLowerCase();
+      if ((role === "assistant" || role === "agent") && status !== "failed") {
+        const text = messageText(message);
         if (text) return text;
       }
     }
     for (const message of messages) {
-      const text = extractMessageText(message.payload);
+      const text = messageText(message);
       if (text) return text;
     }
     return null;
   }
 }
 
-function terminalStatus(status: unknown): string | null {
+function classifyStatus(status: unknown): "succeeded" | "failed" | "canceled" | null {
   const value = String(status || "").trim().toLowerCase();
-  if (["completed", "created", "idle", "ready"].includes(value)) return "succeeded";
-  if (value === "failed" || value === "waiting_approval") return "failed";
-  if (value === "canceled" || value === "cancelled") return "canceled";
+  if (["completed", "succeeded", "idle", "ready"].includes(value)) return "succeeded";
+  if (["failed", "error", "errored"].includes(value)) return "failed";
+  if (["canceled", "cancelled"].includes(value)) return "canceled";
   return null;
+}
+
+function messageText(message: Record<string, unknown>): string | null {
+  if (typeof message.text === "string" && message.text.trim()) return message.text.trim();
+  return extractMessageText(message.payload);
 }
 
 function extractMessageText(value: unknown): string | null {

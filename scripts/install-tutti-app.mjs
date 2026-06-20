@@ -103,7 +103,18 @@ try {
 await api("POST", `${appsBase}/import`, { archivePath: zipPath });
 console.log(`• imported ${appId} v${version}`);
 await api("POST", `${appsBase}/${appId}/install`);
-const launched = await api("POST", `${appsBase}/${appId}/launch`);
+console.log(`• installed ${appId} v${version}`);
+let launched;
+for (let attempt = 0; attempt < 5; attempt++) {
+  try {
+    launched = await api("POST", `${appsBase}/${appId}/launch`);
+    break;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("404") || attempt === 4) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+}
 const app = launched.app || launched;
 
 const stateRoot = resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId);

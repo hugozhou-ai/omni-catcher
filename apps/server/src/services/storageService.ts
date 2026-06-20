@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, writeFile, appendFile, rm } from "node:fs/pro
 import { join } from "node:path";
 import { URL } from "node:url";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
-import type { Capture, Classification, ConfirmEdits, Intent, Item } from "@omni-catcher/shared";
+import type { Capture, Classification, ConfirmEdits, Intent, Item, ItemMetaUpdate, PriorityLevel } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { Mutex, extractUrls, nowIso, slugify, todayStamp } from "../util.js";
 import { ruleTasks } from "./classificationService.js";
@@ -26,6 +26,7 @@ export interface IStorageService {
   findItem(id: string): Promise<Item | null>;
   readItem(id: string): Promise<{ item: Item; markdown: string } | null>;
   searchItems(query: string): Promise<Item[]>;
+  updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
   writeItem(
     intent: Intent,
     classification: Classification,
@@ -167,7 +168,7 @@ export class StorageService implements IStorageService {
     const needle = query.toLowerCase();
     const results: Item[] = [];
     for (const item of await this.readIndex()) {
-      const blob = [item.title, item.type, (item.tags || []).join(" ")].join(" ").toLowerCase();
+      const blob = [item.title, item.summary || "", item.type, (item.tags || []).join(" ")].join(" ").toLowerCase();
       if (blob.includes(needle)) {
         results.push(item);
         continue;
@@ -180,6 +181,35 @@ export class StorageService implements IStorageService {
       }
     }
     return results;
+  }
+
+  async updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item> {
+    const existing = await this.findItem(id);
+    if (!existing) throw new Error(`item ${id} was not found`);
+    const filePath = join(this.dataDir, existing.path);
+    const markdown = await readFile(filePath, "utf-8");
+    const meta = parseFrontmatter(markdown);
+    if (update.urgency !== undefined) meta.urgency = update.urgency;
+    if (update.importance !== undefined) meta.importance = update.importance;
+    const bodyStart = markdown.indexOf("\n---\n", 4);
+    const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
+    const nextMarkdown = buildFrontmatter(meta) + "\n" + body;
+    const nextItem: Item = {
+      ...existing,
+      urgency: parsePriorityLevel(meta.urgency) ?? existing.urgency,
+      importance: parsePriorityLevel(meta.importance) ?? existing.importance,
+    };
+    await this.mutex.run(async () => {
+      await writeFile(filePath, nextMarkdown, "utf-8");
+      const items = await this.readIndex();
+      const nextIndex = items.map((item) => (item.id === id ? nextItem : item));
+      await writeFile(
+        this.indexPath,
+        nextIndex.map((item) => JSON.stringify(item)).join("\n") + (nextIndex.length ? "\n" : ""),
+        "utf-8",
+      );
+    });
+    return nextItem;
   }
 
   async writeItem(
@@ -197,17 +227,23 @@ export class StorageService implements IStorageService {
     const filename = `${todayStamp()}-${slugify(title, itemId)}.md`;
     const relative = `${folder}/${filename}`;
     const confirmedAt = nowIso();
+    const summary = (effective.summary || "").trim().slice(0, 500);
+    const urgency = intent === "todo" ? (edits.urgency ?? 2) : undefined;
+    const importance = intent === "todo" ? (edits.importance ?? 2) : undefined;
     const meta: Record<string, unknown> = {
       id: itemId,
       type: intent,
       status: "confirmed",
       source: capture.source || "paste",
       title,
+      summary,
       createdAt: capture.createdAt || confirmedAt,
       confirmedAt,
       tags: effective.tags,
       urls: effective.extractedUrls,
     };
+    if (urgency !== undefined) meta.urgency = urgency;
+    if (importance !== undefined) meta.importance = importance;
     if (capture.agentSessionId) meta.agentSessionId = capture.agentSessionId;
     if (capture.agentProvider) meta.agentProvider = capture.agentProvider;
     const document = buildFrontmatter(meta) + "\n\n" + buildBody(intent, effective, content);
@@ -215,9 +251,12 @@ export class StorageService implements IStorageService {
       id: itemId,
       type: intent,
       title,
+      summary: summary || undefined,
       path: relative,
       status: "confirmed",
       tags: effective.tags,
+      urgency,
+      importance,
       createdAt: String(meta.createdAt),
       confirmedAt,
     };
@@ -242,16 +281,7 @@ export class StorageService implements IStorageService {
         const meta = parseFrontmatter(await readFile(join(this.dataDir, folder, name), "utf-8"));
         const id = String(meta.id || name.replace(/\.md$/, ""));
         if (entries.some((existing) => existing.id === id)) continue;
-        entries.push({
-          id,
-          type: (meta.type as Intent) || intent,
-          title: String(meta.title || id),
-          path: `${folder}/${name}`,
-          status: "confirmed",
-          tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
-          createdAt: String(meta.createdAt || ""),
-          confirmedAt: String(meta.confirmedAt || ""),
-        });
+        entries.push(itemFromFrontmatter(meta, (meta.type as Intent) || intent, `${folder}/${name}`));
       }
     }
     entries.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
@@ -269,6 +299,29 @@ function applyEdits(classification: Classification, edits: ConfirmEdits): Classi
   if (edits.title && edits.title.trim()) next.title = edits.title.trim().slice(0, 120);
   if (Array.isArray(edits.tags)) next.tags = edits.tags.map((t) => t.trim()).filter(Boolean).slice(0, 5);
   return next;
+}
+
+function parsePriorityLevel(value: unknown): PriorityLevel | undefined {
+  const n = Number(value);
+  if (n === 1 || n === 2 || n === 3) return n;
+  return undefined;
+}
+
+function itemFromFrontmatter(meta: Record<string, unknown>, type: Intent, path: string): Item {
+  const id = String(meta.id || path.replace(/\.md$/, ""));
+  return {
+    id,
+    type,
+    title: String(meta.title || id),
+    summary: String(meta.summary || "").trim() || undefined,
+    path,
+    status: "confirmed",
+    tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
+    urgency: parsePriorityLevel(meta.urgency),
+    importance: parsePriorityLevel(meta.importance),
+    createdAt: String(meta.createdAt || ""),
+    confirmedAt: String(meta.confirmedAt || ""),
+  };
 }
 
 function yamlScalar(value: unknown): string {

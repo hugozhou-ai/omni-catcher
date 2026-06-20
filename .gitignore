@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# local dev runtime data
+.data/
+.dev/
+.dev-data/
+.dev-logs/
+.dev-runtime/
+
+# logs
+*.log
+
+# os / editor
+.DS_Store
+
+# cursor local plans/state
+.cursor/

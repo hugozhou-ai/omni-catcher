@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "tutti.app.manifest.v1",
+  "appId": "omni-catcher",
+  "version": "0.1.0",
+  "name": "Omni Catcher",
+  "description": "Capture anything, let an agent classify it, confirm, and save as local Markdown notes, bookmarks, and todos.",
+  "icon": {
+    "type": "asset",
+    "src": "icon.svg"
+  },
+  "runtime": {
+    "bootstrap": "bootstrap.sh",
+    "healthcheckPath": "/healthz"
+  },
+  "cli": {
+    "manifest": "tutti.cli.json"
+  },
+  "references": {
+    "searchEndpoint": "/tutti/references/search"
+  },
+  "window": {
+    "minimizeBehavior": "keep-mounted",
+    "minWidth": 760,
+    "minHeight": 520
+  },
+  "author": {
+    "name": "Omni Catcher"
+  },
+  "tags": ["notes", "capture", "workspace"],
+  "localizationInfo": {
+    "defaultLocale": "en",
+    "additionalLocales": [
+      {
+        "locale": "zh-CN",
+        "file": "locales/zh-CN/manifest.json"
+      }
+    ]
+  }
+}

@@ -49,7 +49,7 @@ await build({
 
 console.log("• assembling package");
 cpSync(resolve(root, "apps/web/dist"), resolve(pkg, "dist"), { recursive: true });
-for (const input of ["tutti.app.json", "tutti.cli.json", "icon.svg", "AGENTS.md", "COMMANDS.md", "prompts", "locales"]) {
+for (const input of ["tutti.app.json", "tutti.cli.json", "icon.png", "AGENTS.md", "COMMANDS.md", "prompts", "locales"]) {
   copy(input);
 }
 cpSync(resolve(root, "bootstrap.sh"), resolve(pkg, "bootstrap.sh"));

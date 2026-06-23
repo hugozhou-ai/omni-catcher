@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { IInstantiationService } from "@omni-catcher/shared/platform";
+import { ILogService, type IInstantiationService } from "@omni-catcher/shared/platform";
 import {
   cliJson,
   cliTable,
@@ -23,6 +23,7 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   const agent = services.get(IAgentService);
   const captures = services.get(ICaptureService);
   const references = services.get(IReferenceService);
+  const log = services.get(ILogService);
 
   app.get("/healthz", async () => ({ ok: true }));
 
@@ -77,7 +78,15 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   });
 
   app.post<{ Params: { id: string } }>("/api/captures/:id/reject", async (request) => {
+    const existing = await storage.readCapture(request.params.id);
     await storage.deleteCapture(request.params.id);
+    log.info(
+      `capture-reject ${JSON.stringify({
+        id: request.params.id,
+        existed: Boolean(existing),
+        status: existing?.status || "",
+      })}`,
+    );
     return { rejected: true };
   });
 

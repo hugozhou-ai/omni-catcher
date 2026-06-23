@@ -1,9 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
+import type { ILogService } from "@omni-catcher/shared/platform";
 import type { Classification, ClassificationIntent, MixedItem } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { extractUrls, firstNonemptyLine } from "../util.js";
+import type { ITuttiCliService } from "./tuttiCliService.js";
 
 export interface IClassificationService {
   rulePreview(content: string, url: string): Classification;
@@ -15,9 +17,14 @@ export interface IClassificationService {
 export const IClassificationService = createServiceIdentifier<IClassificationService>("classificationService");
 
 const VALID_INTENTS: ClassificationIntent[] = ["note", "bookmark", "todo", "mixed", "clarify"];
+const URL_CONTEXT_LOG_PREFIX = "url-context";
 
 export class ClassificationService implements IClassificationService {
-  constructor(private readonly config: AppConfig) {}
+  constructor(
+    private readonly config: AppConfig,
+    private readonly cli: ITuttiCliService,
+    private readonly log: ILogService,
+  ) {}
 
   rulePreview(content: string, url: string): Classification {
     const text = (content || "").trim();
@@ -50,7 +57,7 @@ export class ClassificationService implements IClassificationService {
 
   async classifyPrompt(content: string): Promise<string> {
     const template = await readFile(resolve(this.config.promptsDir, "classify.md"), "utf-8");
-    const enriched = await enrichContentForClassification(content);
+    const enriched = await enrichContentForClassification(content, this.cli, this.log);
     return template.replace("{{CONTENT}}", enriched);
   }
 
@@ -116,21 +123,56 @@ function normalizeMergePreview(value: unknown): Classification["mergePreview"] {
   };
 }
 
-async function enrichContentForClassification(content: string): Promise<string> {
+const MAX_URL_CONTEXTS = 2;
+const MAX_FETCHED_TEXT_CHARS = 300_000;
+const MAX_EXCERPT_CHARS = 2_500;
+const MAX_ENRICHED_CONTENT_CHARS = 7_000;
+
+type UrlContext = {
+  source: "fetch" | "browser" | "url";
+  text: string;
+};
+
+async function enrichContentForClassification(
+  content: string,
+  cli: ITuttiCliService,
+  log: ILogService,
+): Promise<string> {
   const text = (content || "").trim();
-  const urls = extractUrls(text).slice(0, 3);
+  const urls = extractUrls(text).slice(0, MAX_URL_CONTEXTS);
   if (!urls.length) return text;
-  const contexts = (await Promise.all(urls.map(fetchUrlContext))).filter(Boolean);
+  const contexts = (await Promise.all(urls.map((url) => readUrlContext(url, cli, log)))).filter(Boolean);
   if (!contexts.length) return text;
-  return [
+  for (const context of contexts) {
+    log.info(
+      `${URL_CONTEXT_LOG_PREFIX} ${JSON.stringify({
+        event: "selected",
+        source: context.source,
+        length: context.text.length,
+      })}`,
+    );
+  }
+  const enriched = [
     text,
     "",
-    "URL context for intent classification:",
-    contexts.join("\n\n"),
+    "URL context for intent classification. Prefer fetched/browser page content; use URL signal only when page content is unavailable:",
+    contexts.map((context) => context.text).join("\n\n"),
   ].join("\n");
+  return enriched.slice(0, MAX_ENRICHED_CONTENT_CHARS);
 }
 
-async function fetchUrlContext(url: string): Promise<string> {
+async function readUrlContext(url: string, cli: ITuttiCliService, log: ILogService): Promise<UrlContext> {
+  const fetched = await fetchUrlContext(url, log);
+  if (hasUsablePageText(fetched.pageText)) return { source: "fetch", text: fetched.context };
+  const browser = await browserUrlContext(url, cli, log);
+  if (browser && hasUsablePageText(browser.pageText)) return { source: "browser", text: browser.context };
+  return { source: "url", text: urlContextFromUrlOnly(url, fetched.contentType) };
+}
+
+async function fetchUrlContext(
+  url: string,
+  log: ILogService,
+): Promise<{ context: string; pageText: string; contentType: string }> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -140,19 +182,33 @@ async function fetchUrlContext(url: string): Promise<string> {
         accept: "text/html, text/plain;q=0.9, */*;q=0.5",
       },
     });
-  } catch {
-    return urlContextFromUrlOnly(url);
+  } catch (error) {
+    log.info(
+      `${URL_CONTEXT_LOG_PREFIX} ${JSON.stringify({
+        event: "fetch_failed",
+        url,
+        error: (error as Error).message,
+      })}`,
+    );
+    return { context: urlContextFromUrlOnly(url), pageText: "", contentType: "" };
   }
   const contentType = response.headers.get("content-type") || "";
-  if (!response.ok) return urlContextFromUrlOnly(url, contentType);
+  if (!response.ok) return { context: urlContextFromUrlOnly(url, contentType), pageText: "", contentType };
   if (!/^text\/html|^text\/plain/i.test(contentType)) {
-    return urlContextFromUrlOnly(url, contentType);
+    return { context: urlContextFromUrlOnly(url, contentType), pageText: "", contentType };
   }
   let html = "";
   try {
-    html = (await response.text()).slice(0, 300_000);
-  } catch {
-    return urlContextFromUrlOnly(url, contentType);
+    html = (await response.text()).slice(0, MAX_FETCHED_TEXT_CHARS);
+  } catch (error) {
+    log.info(
+      `${URL_CONTEXT_LOG_PREFIX} ${JSON.stringify({
+        event: "fetch_read_failed",
+        url,
+        error: (error as Error).message,
+      })}`,
+    );
+    return { context: urlContextFromUrlOnly(url, contentType), pageText: "", contentType };
   }
   const title = extractTagText(html, "title");
   const description =
@@ -160,15 +216,114 @@ async function fetchUrlContext(url: string): Promise<string> {
     extractMeta(html, "og:description") ||
     extractMeta(html, "twitter:description");
   const h1 = extractTagText(html, "h1");
-  const excerpt = htmlToText(html).slice(0, 1800);
-  return compactLines([
+  const pageText = htmlToText(html);
+  const excerpt = pageText.slice(0, MAX_EXCERPT_CHARS);
+  const context = compactLines([
     `URL: ${url}`,
     `Content-Type: ${contentType}`,
+    "Page read source: fetch",
+    `URL signal: ${looksLikeDocumentUrl(url) ? "article-or-paper-like" : "site-or-tool-like"}`,
     title ? `Title: ${title}` : "",
     h1 && h1 !== title ? `Heading: ${h1}` : "",
     description ? `Description: ${description}` : "",
     excerpt ? `Text excerpt: ${excerpt}` : "",
   ]).join("\n");
+  return { context, pageText, contentType };
+}
+
+async function browserUrlContext(
+  url: string,
+  cli: ITuttiCliService,
+  log: ILogService,
+): Promise<{ context: string; pageText: string } | null> {
+  if (!cli.isConfigured()) return null;
+  try {
+    await cli.run(["browser", "navigate", "--url", url], 20_000);
+    const result = await cli.run(
+      [
+        "browser",
+        "eval",
+        "--script",
+        "() => ({ title: document.title, url: location.href, text: document.body ? document.body.innerText : '' })",
+      ],
+      20_000,
+    );
+    const payload = extractBrowserPayload(result);
+    const pageText = payload.text.trim();
+    if (!hasUsablePageText(pageText)) {
+      const snapshot = await cli.run(["browser", "snapshot"], 20_000).catch(() => ({}));
+      const snapshotText = extractLongestString(snapshot).trim();
+      const contextText = snapshotText || pageText;
+      if (!hasUsablePageText(contextText)) return null;
+      return {
+        context: browserContextText(url, payload.title, contextText),
+        pageText: contextText,
+      };
+    }
+    return {
+      context: browserContextText(url, payload.title, pageText),
+      pageText,
+    };
+  } catch (error) {
+    log.info(
+      `${URL_CONTEXT_LOG_PREFIX} ${JSON.stringify({
+        event: "browser_failed",
+        url,
+        error: (error as Error).message,
+      })}`,
+    );
+    return null;
+  }
+}
+
+function browserContextText(url: string, title: string, pageText: string): string {
+  return compactLines([
+    `URL: ${url}`,
+    "Page read source: browser",
+    `URL signal: ${looksLikeDocumentUrl(url) ? "article-or-paper-like" : "site-or-tool-like"}`,
+    title ? `Title: ${title}` : "",
+    `Text excerpt: ${pageText.slice(0, MAX_EXCERPT_CHARS)}`,
+  ]).join("\n");
+}
+
+function hasUsablePageText(text: string): boolean {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length < 120) return false;
+  return !/^(please wait|loading|加载中|请稍候|just a moment|enable javascript)[.!。…\s]*$/i.test(normalized.slice(0, 80));
+}
+
+function extractBrowserPayload(value: unknown): { title: string; text: string } {
+  const raw = unwrapCliValue(value);
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    return {
+      title: String(obj.title || ""),
+      text: String(obj.text || obj.innerText || obj.result || ""),
+    };
+  }
+  return { title: "", text: String(raw || "") };
+}
+
+function unwrapCliValue(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const obj = value as Record<string, unknown>;
+  for (const key of ["result", "value", "data", "page", "snapshot"]) {
+    if (key in obj) return unwrapCliValue(obj[key]);
+  }
+  return obj;
+}
+
+function extractLongestString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(extractLongestString).sort((a, b) => b.length - a.length)[0] || "";
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map(extractLongestString)
+      .sort((a, b) => b.length - a.length)[0] || "";
+  }
+  return "";
 }
 
 function urlContextFromUrlOnly(url: string, contentType = ""): string {

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Capture, Classification, Intent, PriorityLevel } from "@omni-catcher/shared";
 import { useService } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
@@ -62,9 +62,41 @@ export function DecisionCard(props: {
   }
 
   async function reject(): Promise<void> {
-    await captureService.reject(capture.id);
-    showToast(t("discarded"));
-    onDone();
+    console.info(
+      `capture-reject-ui ${JSON.stringify({
+        event: "click",
+        id: capture.id,
+        status: capture.status,
+      })}`,
+    );
+    setBusy(true);
+    try {
+      await captureService.reject(capture.id);
+      console.info(
+        `capture-reject-ui ${JSON.stringify({
+          event: "done",
+          id: capture.id,
+        })}`,
+      );
+      showToast(t("discarded"));
+      onDone();
+    } catch (error) {
+      console.info(
+        `capture-reject-ui ${JSON.stringify({
+          event: "failed",
+          id: capture.id,
+          error: (error as Error).message,
+        })}`,
+      );
+      showToast((error as Error).message);
+      setBusy(false);
+    }
+  }
+
+  function openDetailByKeyboard(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setDetail(true);
   }
 
   if (detail) {
@@ -150,7 +182,13 @@ export function DecisionCard(props: {
 
   return (
     <div className={`decision-card intent-border intent-${intent}`}>
-      <button type="button" className="decision-preview" onClick={() => setDetail(true)}>
+      <div
+        className="decision-preview"
+        role="button"
+        tabIndex={0}
+        onClick={() => setDetail(true)}
+        onKeyDown={openDetailByKeyboard}
+      >
         <div className="decision-head">
           <div>
             <Badge intent={intent} label={t(intentKey(intent))} />
@@ -170,7 +208,7 @@ export function DecisionCard(props: {
         <h3 className="decision-preview-title">{title || data.title}</h3>
         {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
         <p className="decision-original-preview">{capture.content}</p>
-      </button>
+      </div>
 
       <div className="decision-form compact">
         <DecisionEditor
@@ -314,7 +352,7 @@ function DecisionFooter(props: {
       ) : null}
 
       <div className="decision-actions">
-        <button type="button" className="danger" onClick={() => void onReject()}>
+        <button type="button" className="danger" disabled={busy} onClick={() => void onReject()}>
           {t("reject")}
         </button>
         <button type="button" className="primary" disabled={busy} onClick={() => void onConfirm()}>

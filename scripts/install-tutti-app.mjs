@@ -16,10 +16,10 @@
  *   --no-package      Skip `pnpm package:tutti` and reuse build/tutti-app/package.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgDir = resolve(root, "build/tutti-app/package");
@@ -92,7 +92,15 @@ if (!workspaceId) {
 if (!workspaceId) throw new Error("could not resolve a target workspace id");
 
 const appsBase = `/v1/workspaces/${workspaceId}/apps`;
+const stateRoot = resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId);
+const dataDir = resolve(stateRoot, "data");
+const dataBackupRoot = mkdtempSync(resolve(tmpdir(), "omni-catcher-data-"));
+const dataBackupDir = resolve(dataBackupRoot, "data");
 console.log(`• target workspace ${workspaceId}`);
+if (existsSync(dataDir)) {
+  cpSync(dataDir, dataBackupDir, { recursive: true });
+  console.log(`• backed up app data -> ${dataBackupDir}`);
+}
 
 try {
   await api("POST", `${appsBase}/${appId}/uninstall`);
@@ -104,6 +112,11 @@ await api("POST", `${appsBase}/import`, { archivePath: zipPath });
 console.log(`• imported ${appId} v${version}`);
 await api("POST", `${appsBase}/${appId}/install`);
 console.log(`• installed ${appId} v${version}`);
+if (existsSync(dataBackupDir)) {
+  rmSync(dataDir, { recursive: true, force: true });
+  cpSync(dataBackupDir, dataDir, { recursive: true });
+  console.log("• restored app data");
+}
 let launched;
 for (let attempt = 0; attempt < 5; attempt++) {
   try {
@@ -117,9 +130,8 @@ for (let attempt = 0; attempt < 5; attempt++) {
 }
 const app = launched.app || launched;
 
-const stateRoot = resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId);
 console.log(`✓ installed & launched ${appId} v${app.version} (status=${app.status})`);
 console.log(`  launchUrl : ${app.launchUrl || "(starting)"}`);
-console.log(`  data dir  : ${resolve(stateRoot, "data")}`);
+console.log(`  data dir  : ${dataDir}`);
 console.log(`  logs      : ${resolve(stateRoot, "logs")}/{runtime,web}.log`);
 console.log(`  CLI       : TUTTI_WORKSPACE_ID=${workspaceId} tutti --json ${appId} pending`);

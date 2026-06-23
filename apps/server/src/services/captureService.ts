@@ -15,6 +15,8 @@ export interface ICaptureService {
 
 export const ICaptureService = createServiceIdentifier<ICaptureService>("captureService");
 
+const CLASSIFY_LOG_PREFIX = "capture-classify";
+
 export class CaptureService implements ICaptureService {
   constructor(
     private readonly config: AppConfig,
@@ -56,6 +58,15 @@ export class CaptureService implements ICaptureService {
       const settings = await this.storage.readSettings();
       const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
       const prompt = await this.classification.classifyPrompt(capture.content);
+      this.log.info(
+        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          event: "start",
+          id,
+          contentLength: capture.content.length,
+          promptLength: prompt.length,
+          preferredProvider: preferredProvider || "",
+        })}`,
+      );
       const outcome = await this.agent.runPrompt(
         prompt,
         "Omni Catcher: classify",
@@ -70,8 +81,24 @@ export class CaptureService implements ICaptureService {
       capture.agentProvider = outcome.provider;
       capture.status = "classified";
       capture.error = null;
+      this.log.info(
+        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          event: "classified",
+          id,
+          sessionId: outcome.sessionId,
+          provider: outcome.provider,
+          intent: capture.classification.primaryIntent,
+          confidence: capture.classification.confidence,
+        })}`,
+      );
     } catch (error) {
-      this.log.warn(`classification failed for ${id}: ${(error as Error).message}`);
+      this.log.warn(
+        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          event: "failed",
+          id,
+          error: (error as Error).message,
+        })}`,
+      );
       capture = (await this.storage.readCapture(id)) || capture;
       const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
       capture.classification = this.classification.normalize(fallbackRaw, capture.content);

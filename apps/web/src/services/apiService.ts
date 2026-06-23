@@ -14,18 +14,20 @@ export class HttpApiService implements IApiService {
   }
 
   post<T>(path: string, body?: unknown): Promise<T> {
+    const hasBody = body !== undefined;
     return this.request<T>(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+      body: hasBody ? JSON.stringify(body) : undefined,
     });
   }
 
   patch<T>(path: string, body?: unknown): Promise<T> {
+    const hasBody = body !== undefined;
     return this.request<T>(path, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: hasBody ? { "Content-Type": "application/json" } : undefined,
+      body: hasBody ? JSON.stringify(body) : undefined,
     });
   }
 

@@ -491,6 +491,7 @@ select:focus {
   background: transparent;
   color: inherit;
   text-align: left;
+  cursor: pointer;
 }
 
 .decision-preview::after {
@@ -753,6 +754,8 @@ select:focus {
 }
 
 .decision-actions {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: 9px;

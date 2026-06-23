@@ -7,25 +7,23 @@ result is saved as a local Markdown file you can browse, search, and reference w
 
 ## UI
 
-The web UI is a single-page app with an icon-only sidebar and a main content area.
+The web UI is a single-page app where **Capture** is the primary entry point.
+Saved content is organized later in the secondary **Library** area.
 
 ```text
-┌──────┬─────────────────────────────────────────┐
-│ logo │  Capture home (default)                 │
-│ TODO │  · logo image above the input           │
-│ note │  · paste → Agent classifies → confirm   │
-│ link │                                         │
-└──────┴─────────────────────────────────────────┘
+┌─────────┬─────────────────────────────────────────┐
+│ Capture │  Capture home (default, primary)        │
+│ Library │  · paste → Agent classifies → confirm   │
+│         │  · library groups saved results         │
+└─────────┴─────────────────────────────────────────┘
 ```
 
 ### Sidebar
 
 | Icon | View | Purpose |
 |------|------|---------|
-| Omni logo (`public/omni-catcher-logo.png`) | **Capture** | Home: paste content, run Agent classification, confirm once |
-| Checklist | **Todos** | Saved todos with filters, sort, and Eisenhower matrix |
-| Document | **Notes** | Note cards (title + summary) |
-| Bookmark | **Bookmarks** | Bookmark cards (title + summary) |
+| Capture | **Capture** | Primary entry point: paste content, run Agent classification, confirm once |
+| Grid | **Library** | Secondary organization area for all saved results |
 
 ### Capture flow (in-place decision card)
 
@@ -38,14 +36,15 @@ There is no chat-style conversation UI — each capture is a single round trip:
 
 If the Agent is unavailable, the card falls back to rule-based classification and shows a short “needs review” notice; you still pick the intent manually.
 
-### Library tabs
+### Library
 
+- **All** — card grid across saved notes, bookmarks, and todos.
 - **Notes / Bookmarks** — card grid with `summary` from classification (stored in frontmatter and `index.jsonl`). Click a card to preview the Markdown body.
 - **Todos** — same card layout, plus **urgency** and **importance** (1–3). Toolbar supports filter/sort and a **List ↔ Matrix** toggle:
   - **List** — filter by urgency/importance, sort by newest / urgency / importance.
   - **Matrix** — Eisenhower 2×2 (important·urgent, important·not urgent, …). Drag a card into a quadrant to update its urgency/importance (`PATCH /api/items/:id`).
 
-Logo asset lives at `apps/web/public/omni-catcher-logo.png` and is served as `/omni-catcher-logo.png`.
+Logo asset lives at `apps/web/public/omni-catcher-logo.webp` and is served as `/omni-catcher-logo.webp`.
 
 ## Architecture
 
@@ -71,7 +70,7 @@ omni-catcher/
 │   │           ├── referenceService.ts     # @mention file search
 │   │           └── issueService.ts         # optional Tutti issue creation
 │   └── web/                    # React + Vite UI
-│       ├── public/             # omni-catcher-logo.png (capture home branding)
+│       ├── public/             # omni-catcher-logo.webp (capture home branding)
 │       └── src/
 │           ├── platform/        # React DI provider + observable Store
 │           ├── services/        # UI services (api/capture/library/...)
@@ -79,7 +78,7 @@ omni-catcher/
 │           ├── features/
 │           │   ├── capture/     # CaptureHome + DecisionCard
 │           │   ├── todo/        # TodoPanel (list + Eisenhower matrix)
-│           │   └── library/     # CollectionPanel (notes / bookmarks)
+│           │   └── library/     # LibraryPanel + CollectionPanel
 │           └── i18n/            # en / zh-CN dictionaries
 ├── packages/
 │   └── shared/                 # contracts + DI platform reused by both apps

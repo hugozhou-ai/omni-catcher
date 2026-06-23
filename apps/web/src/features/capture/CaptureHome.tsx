@@ -13,7 +13,6 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
-import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -81,7 +80,7 @@ export function CaptureHome(): ReactNode {
   const [providerHint, setProviderHint] = useState("");
   const [preferred, setPreferred] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 28, y: 22 });
+  const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 24, y: 18 });
 
   const activeCapture: Capture | null =
     activeId ? captures.find((c) => c.id === activeId) ?? null : null;
@@ -173,17 +172,6 @@ export function CaptureHome(): ReactNode {
           <div className="capture-logo-frame">
             <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" />
           </div>
-        </div>
-        <div className="capture-status-line">
-          <span className="status-chip">
-            <Icon name="spark" />
-            <span className="status-chip-text">
-              {providers.length ? preferred || t("providerDefaultOption") : t("providerNone")}
-            </span>
-          </span>
-          {captures.length ? (
-            <span className="status-chip muted">{captures.length}</span>
-          ) : null}
         </div>
       </div>
 

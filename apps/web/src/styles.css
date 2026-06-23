@@ -378,15 +378,16 @@ select:focus {
 .capture-hero {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 70px;
+  justify-content: center;
+  min-height: 80px;
 }
 
 .capture-brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   min-width: 0;
+  width: 100%;
 }
 
 .capture-logo-frame {
@@ -397,58 +398,8 @@ select:focus {
 
 .capture-logo {
   display: block;
-  width: min(286px, 64vw);
+  width: min(340px, 72vw);
   height: auto;
-}
-
-.capture-status-line {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.status-chip {
-  flex: 0 1 min(560px, 48vw);
-  min-height: 42px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  max-width: min(560px, 48vw);
-  min-width: 0;
-  padding: 8px 14px;
-  border: 2px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 400;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-chip .icon {
-  flex: 0 0 auto;
-}
-
-.status-chip-text {
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-chip.muted {
-  flex: 0 0 auto;
-  min-width: 42px;
-  justify-content: center;
-  color: var(--accent);
 }
 
 .capture-sheet,
@@ -465,7 +416,7 @@ select:focus {
   background: var(--surface);
   border-color: var(--border);
   overflow: hidden;
-  min-height: 360px;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-strong);
@@ -474,7 +425,7 @@ select:focus {
 .capture-textarea-wrap {
   position: relative;
   flex: 1;
-  min-height: 260px;
+  min-height: 220px;
   display: flex;
   background: var(--surface);
 }
@@ -482,14 +433,14 @@ select:focus {
 .capture-textarea,
 .capture-sheet textarea {
   width: 100%;
-  min-height: 260px;
+  min-height: 220px;
   flex: 1;
   resize: vertical;
   border: none;
   border-radius: 14px 14px 0 0;
   background: var(--surface);
   color: var(--text);
-  padding: 24px 28px;
+  padding: 20px 24px;
   font-size: 16px;
   line-height: 26px;
 }
@@ -1550,7 +1501,6 @@ select:focus {
     flex-direction: column;
   }
 
-  .capture-status-line,
   .library-tabs,
   .collection-toolbar {
     justify-content: flex-start;

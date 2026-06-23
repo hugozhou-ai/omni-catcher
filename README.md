@@ -5,6 +5,34 @@ agent classifies the intent (note / bookmark / todo / mixed). After you confirm,
 result is saved as a local Markdown file you can browse, search, and reference with
 `@omni-catcher`.
 
+## Product philosophy
+
+Omni Catcher is an intelligent sticky note for a workspace: the user should only need
+one habit — paste anything into the capture box. The app then uses an Agent to infer
+what the captured material wants to become, shows the decision clearly, and writes the
+confirmed result into local Markdown.
+
+The central design idea is **capture first, organize second**:
+
+- **One super entry point** — Capture is the primary workflow, not one tab among many.
+  Articles, papers, links, tasks, and mixed notes all start from the same input.
+- **Agent as classifier, user as editor** — the Agent proposes an intent, title,
+  summary, tags, split items, or todo upgrade; the user can inspect the detail, change
+  the intent, and confirm or discard.
+- **Links are content, not automatically bookmarks** — a URL may be an article, paper,
+  tutorial, product, tool, dataset, or task reference. The server enriches URLs with
+  page title/description/excerpt before classification so the Agent can decide based on
+  meaning rather than URL shape alone.
+- **Knowledge should consolidate when possible** — article and paper captures are meant
+  to become notes, preferably organized into an existing document at the right place
+  when enough context is available. Existing content should stay visible and subdued;
+  newly inserted content should be visually distinct.
+- **The Library is downstream of capture** — Todos, Notes, and Bookmarks are
+  organization views over confirmed captures, not independent primary workflows.
+- **Local-first, markdown-first** — confirmed items are durable Markdown files under the
+  app data directory. `index.jsonl` supports fast browse/search but can be rebuilt from
+  the Markdown source of truth.
+
 ## UI
 
 The web UI is a single-page app where **Capture** is the primary entry point.
@@ -151,8 +179,8 @@ node scripts/install-tutti-app.mjs --bump   # package -> import -> install -> la
 
 The script targets `$TUTTI_WORKSPACE_ID` (or the most recently opened workspace) and
 prints the launch URL plus the data/log paths. Open the app from the Tutti workbench —
-use the **Omni logo** in the sidebar for capture, or the TODO / Notes / Bookmarks icons
-for library views.
+use **Capture** as the primary entry point, then open **Library** for saved todos,
+notes, and bookmarks.
 
 > **Reinstalling: always `--bump`.** The daemon keys installed packages by version and
 > will not overwrite an existing version with new contents, so every redeploy needs a new

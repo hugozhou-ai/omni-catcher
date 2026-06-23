@@ -5,6 +5,7 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { Badge } from "../../components/Badge.js";
+import { Icon } from "../../components/Icons.js";
 import { intentKey } from "../../i18n/intent.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -67,41 +68,46 @@ export function DecisionCard(props: {
   return (
     <div className={`decision-card intent-border intent-${intent}`}>
       <div className="decision-head">
-        <Badge intent={intent} label={t(intentKey(intent))} />
-        {data.confidence > 0 && (
-          <span className="hint">
-            {t("confidence")} {Math.round(data.confidence * 100)}%
-          </span>
-        )}
+        <div>
+          <Badge intent={intent} label={t(intentKey(intent))} />
+          {data.confidence > 0 && (
+            <span className="confidence">
+              {t("confidence")} {Math.round(data.confidence * 100)}%
+            </span>
+          )}
+        </div>
+        <Icon name="chevronRight" className="decision-arrow" />
       </div>
 
       {capture.status === "needs_review" && (
         <div className="notice warn">{t("needsReview")}</div>
       )}
 
-      <div className="field">
-        <label>{t("title")}</label>
-        <input type="text" value={title} onChange={(event) => setTitle(event.target.value)} />
-      </div>
+      <div className="decision-form">
+        <div className="field">
+          <label>{t("title")}</label>
+          <input type="text" value={title} onChange={(event) => setTitle(event.target.value)} />
+        </div>
 
-      {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
+        {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
 
-      <div className="field">
-        <label>{t("tags")}</label>
-        <input type="text" value={tags} onChange={(event) => setTags(event.target.value)} />
-      </div>
+        <div className="field">
+          <label>{t("tags")}</label>
+          <input type="text" value={tags} onChange={(event) => setTags(event.target.value)} />
+        </div>
 
-      <div className="intent-pills">
-        {SELECTABLE.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={option === intent ? "active" : ""}
-            onClick={() => setIntent(option)}
-          >
-            {t(intentKey(option))}
-          </button>
-        ))}
+        <div className="intent-pills">
+          {SELECTABLE.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={option === intent ? "active" : ""}
+              onClick={() => setIntent(option)}
+            >
+              {t(intentKey(option))}
+            </button>
+          ))}
+        </div>
       </div>
 
       {intent === "todo" ? (

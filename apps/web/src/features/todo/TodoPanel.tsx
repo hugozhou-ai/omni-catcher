@@ -4,6 +4,7 @@ import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
+import { Icon } from "../../components/Icons.js";
 import { showToast } from "../../platform/toast.js";
 
 type SortKey = "created" | "urgency" | "importance";
@@ -38,7 +39,8 @@ function quadrantOf(item: Item): Quadrant {
   return "q4";
 }
 
-export function TodoPanel(): ReactNode {
+export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
+  const { embedded = false } = props;
   const { t } = useTranslation();
   const library = useService(ILibraryService);
   const items = useStore(library.items);
@@ -98,17 +100,19 @@ export function TodoPanel(): ReactNode {
   }
 
   return (
-    <section className="collection-panel">
+    <section className={embedded ? "collection-panel embedded" : "collection-panel"}>
       <header className="collection-header">
-        <h2>{t("tabTodo")}</h2>
+        {embedded ? null : <h2>{t("tabTodo")}</h2>}
         <div className="collection-toolbar">
-          <input
-            type="search"
-            className="grow"
-            placeholder={t("searchPlaceholder")}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <label className="search-box grow">
+            <Icon name="search" />
+            <input
+              type="search"
+              placeholder={t("searchPlaceholder")}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
           <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortKey)}>
             <option value="created">{t("sortCreated")}</option>
             <option value="urgency">{t("sortUrgency")}</option>
@@ -139,15 +143,17 @@ export function TodoPanel(): ReactNode {
               type="button"
               className={view === "list" ? "active" : ""}
               onClick={() => setView("list")}
+              title={t("viewList")}
             >
-              {t("viewList")}
+              <Icon name="list" />
             </button>
             <button
               type="button"
               className={view === "matrix" ? "active" : ""}
               onClick={() => setView("matrix")}
+              title={t("viewMatrix")}
             >
-              {t("viewMatrix")}
+              <Icon name="grid" />
             </button>
           </div>
         </div>

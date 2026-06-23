@@ -4,9 +4,10 @@ import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
+import { Icon } from "../../components/Icons.js";
 
-export function CollectionPanel(props: { type: Intent }): ReactNode {
-  const { type } = props;
+export function CollectionPanel(props: { type: Intent; embedded?: boolean }): ReactNode {
+  const { type, embedded = false } = props;
   const { t } = useTranslation();
   const library = useService(ILibraryService);
   const items = useStore(library.items);
@@ -38,16 +39,18 @@ export function CollectionPanel(props: { type: Intent }): ReactNode {
   }
 
   return (
-    <section className="collection-panel">
+    <section className={embedded ? "collection-panel embedded" : "collection-panel"}>
       <header className="collection-header">
-        <h2>{t(titleKey)}</h2>
-        <input
-          type="search"
-          className="collection-search"
-          placeholder={t("searchPlaceholder")}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        {embedded ? null : <h2>{t(titleKey)}</h2>}
+        <label className="search-box collection-search">
+          <Icon name="search" />
+          <input
+            type="search"
+            placeholder={t("searchPlaceholder")}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
       </header>
 
       {filtered.length === 0 ? (

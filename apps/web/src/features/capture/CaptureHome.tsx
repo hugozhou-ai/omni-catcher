@@ -5,6 +5,7 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
+import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -44,6 +45,15 @@ export function CaptureHome(): ReactNode {
     );
   }, [workspace, t]);
 
+  useEffect(() => {
+    if (activeId || captures.length === 0) return;
+    const waiting = captures.find((capture) => capture.status === "classifying") ?? captures[0];
+    if (waiting) {
+      setActiveId(waiting.id);
+      setSubmitted(waiting.content);
+    }
+  }, [activeId, captures]);
+
   function reset(): void {
     setContent("");
     setSubmitted("");
@@ -80,9 +90,20 @@ export function CaptureHome(): ReactNode {
 
   return (
     <div className="capture-home">
-      <div className="capture-brand">
-        <div className="capture-logo-frame">
-          <img src="/omni-catcher-logo.png" alt="Omni Catcher" className="capture-logo" />
+      <div className="capture-hero">
+        <div className="capture-brand">
+          <div className="capture-logo-frame">
+            <img src="/omni-catcher-logo.webp" alt="Omni Catcher" className="capture-logo" />
+          </div>
+        </div>
+        <div className="capture-status-line">
+          <span className="status-chip">
+            <Icon name="spark" />
+            {providers.length ? preferred || t("providerDefaultOption") : t("providerNone")}
+          </span>
+          {captures.length ? (
+            <span className="status-chip muted">{captures.length}</span>
+          ) : null}
         </div>
       </div>
 

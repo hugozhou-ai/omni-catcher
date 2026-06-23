@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "../hooks/useTranslation.js";
+import { Icon, type IconName } from "./Icons.js";
 
-export type AppView = "home" | "todo" | "note" | "bookmark";
-
-const SIDEBAR_ICON = "/omni-catcher-icon.png";
+export type AppView = "capture" | "library";
 
 export function Sidebar(props: {
   active: AppView;
@@ -12,26 +11,28 @@ export function Sidebar(props: {
   const { active, onNavigate } = props;
   const { t } = useTranslation();
 
-  const items: { view: AppView; label: string }[] = [
-    { view: "home", label: t("navHome") },
-    { view: "todo", label: t("navTodo") },
-    { view: "note", label: t("navNote") },
-    { view: "bookmark", label: t("navBookmark") },
+  const items: { view: AppView; label: string; icon: IconName; primary?: boolean }[] = [
+    { view: "capture", label: t("navHome"), icon: "capture", primary: true },
+    { view: "library", label: t("navLibrary"), icon: "grid" },
   ];
 
   return (
     <nav className="sidebar" aria-label="Main">
-      {items.map(({ view, label }) => (
+      <div className="sidebar-brand" aria-hidden="true">
+        <img src="/omni-catcher-icon.png" alt="" />
+      </div>
+      {items.map(({ view, label, icon, primary }) => (
         <button
           key={view}
           type="button"
-          className={`sidebar-btn ${active === view ? "active" : ""}`}
+          className={`sidebar-btn ${primary ? "sidebar-primary" : ""} ${active === view ? "active" : ""}`}
           title={label}
           aria-label={label}
           aria-current={active === view ? "page" : undefined}
           onClick={() => onNavigate(view)}
         >
-          <img src={SIDEBAR_ICON} alt="" className="sidebar-icon" />
+          <Icon name={icon} />
+          <span>{label}</span>
         </button>
       ))}
     </nav>

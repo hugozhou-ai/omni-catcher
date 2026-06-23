@@ -7,6 +7,8 @@ export interface Messages {
   captureButton: string;
   pendingTitle: string;
   libraryTitle: string;
+  libraryKicker: string;
+  libraryAll: string;
   searchPlaceholder: string;
   classifying: string;
   needsReview: string;
@@ -16,7 +18,6 @@ export interface Messages {
   confirm: string;
   reject: string;
   writeIssue: string;
-  tabAll: string;
   tabNote: string;
   tabBookmark: string;
   tabTodo: string;
@@ -33,9 +34,7 @@ export interface Messages {
   intentTodo: string;
   intentMixed: string;
   navHome: string;
-  navTodo: string;
-  navNote: string;
-  navBookmark: string;
+  navLibrary: string;
   urgency: string;
   importance: string;
   priorityLow: string;

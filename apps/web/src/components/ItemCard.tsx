@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Item } from "@omni-catcher/shared";
 import { Badge } from "./Badge.js";
+import { Icon } from "./Icons.js";
 import { intentKey } from "../i18n/intent.js";
 import { useTranslation } from "../hooks/useTranslation.js";
 
@@ -25,7 +26,10 @@ export function ItemCard(props: {
       }}
     >
       <div className="item-card-head">
-        <Badge intent={item.type} label={t(intentKey(item.type))} />
+        <div className="item-card-type">
+          <Icon name={iconFor(item.type)} />
+          <Badge intent={item.type} label={t(intentKey(item.type))} />
+        </div>
         <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
       </div>
       <h3 className="item-card-title">{item.title || item.id}</h3>
@@ -49,6 +53,12 @@ export function ItemCard(props: {
       ) : null}
     </article>
   );
+}
+
+function iconFor(type: Item["type"]): "bookmark" | "check" | "document" {
+  if (type === "bookmark") return "bookmark";
+  if (type === "todo") return "check";
+  return "document";
 }
 
 function priorityKey(level: number): "priorityLow" | "priorityMedium" | "priorityHigh" {

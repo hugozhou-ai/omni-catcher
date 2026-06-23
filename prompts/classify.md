@@ -12,6 +12,7 @@ Output STRICT JSON only. No prose, no markdown fences, no explanation. The JSON 
   "extractedUrls": ["https://..."],
   "extractedTasks": ["task one", "task two"],
   "items": [],
+  "mergePreview": null,
   "todoUpgrade": { "agentCompletable": false, "suggestedIssueTitle": "" }
 }
 
@@ -25,6 +26,7 @@ Rules:
 - "extractedTasks" only for todo-like content; otherwise [].
 - "extractedUrls" lists every URL found; otherwise [].
 - "todoUpgrade.agentCompletable" is true only when a todo could plausibly be completed by an autonomous coding/research agent (e.g. "look up the X API docs", "draft a script"). Set "suggestedIssueTitle" to a short imperative title in that case.
+- "mergePreview" is null unless you are explicitly organizing this capture into an existing article and you have enough context for that target. In that case use { "targetTitle": "", "existingContent": "", "insertedContent": "" }.
 - Keep "tags" to at most 5 entries.
 
 Captured content:

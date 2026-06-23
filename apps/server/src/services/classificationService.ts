@@ -78,6 +78,7 @@ export class ClassificationService implements IClassificationService {
       ? (parsed.alternatives as Classification["alternatives"])
       : [];
     const items = Array.isArray(parsed.items) ? (parsed.items as MixedItem[]) : [];
+    const mergePreview = normalizeMergePreview(parsed.mergePreview);
     const upgrade = (parsed.todoUpgrade as Record<string, unknown>) || {};
     return {
       primaryIntent: intent,
@@ -89,6 +90,7 @@ export class ClassificationService implements IClassificationService {
       extractedUrls: urls.map((u) => u.trim()).filter(Boolean),
       extractedTasks: tasks.map((t) => t.trim()).filter(Boolean),
       items,
+      mergePreview,
       todoUpgrade: {
         agentCompletable: Boolean(upgrade.agentCompletable),
         suggestedIssueTitle: String(upgrade.suggestedIssueTitle || "").trim(),
@@ -96,6 +98,19 @@ export class ClassificationService implements IClassificationService {
       source: String(parsed.source || "agent"),
     };
   }
+}
+
+function normalizeMergePreview(value: unknown): Classification["mergePreview"] {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const existingContent = String(raw.existingContent || "").trim();
+  const insertedContent = String(raw.insertedContent || "").trim();
+  if (!existingContent && !insertedContent) return null;
+  return {
+    targetTitle: String(raw.targetTitle || "").trim(),
+    existingContent,
+    insertedContent,
+  };
 }
 
 export function ruleTasks(text: string): string[] {

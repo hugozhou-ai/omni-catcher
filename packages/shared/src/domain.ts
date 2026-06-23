@@ -10,6 +10,12 @@ export interface TodoUpgrade {
   suggestedIssueTitle: string;
 }
 
+export interface MergePreview {
+  targetTitle: string;
+  existingContent: string;
+  insertedContent: string;
+}
+
 export interface MixedItem {
   type: Intent;
   title?: string;
@@ -28,6 +34,7 @@ export interface Classification {
   extractedUrls: string[];
   extractedTasks: string[];
   items: MixedItem[];
+  mergePreview?: MergePreview | null;
   todoUpgrade: TodoUpgrade;
   /** "agent" | "rule" | "rule-fallback" */
   source: string;

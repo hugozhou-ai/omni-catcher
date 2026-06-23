@@ -17,6 +17,14 @@ export interface Messages {
   tags: string;
   confirm: string;
   reject: string;
+  back: string;
+  viewDetail: string;
+  changeIntent: string;
+  agentSuggested: string;
+  agentSummary: string;
+  originalContent: string;
+  existingArticle: string;
+  mixedItems: string;
   writeIssue: string;
   tabNote: string;
   tabBookmark: string;

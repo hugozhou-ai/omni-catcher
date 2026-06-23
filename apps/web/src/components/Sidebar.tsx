@@ -29,9 +29,9 @@ export function Sidebar(props: {
           onClick={() => setExpanded((value) => !value)}
         >
           {expanded ? (
-            <img src="/omni-catcher-logo.webp" alt="Omni Catcher" className="sidebar-logo-wide" />
+            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="sidebar-logo-wide" />
           ) : (
-            <img src="/omni-catcher-icon.png" alt="Omni Catcher" className="sidebar-logo-mark" />
+            <img src="/omni-catcher-icon.webp" alt="Omni Catcher" className="sidebar-logo-mark" />
           )}
           <Icon name="chevronRight" className="sidebar-toggle-icon" />
         </button>

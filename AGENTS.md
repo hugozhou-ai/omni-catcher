@@ -35,6 +35,12 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
   - `index.jsonl` — list/search index; source of truth is the Markdown files (rebuildable via `POST /api/rebuild-index`).
   - `settings.json` — preferred agent provider.
 - `StorageService` serializes all index/file writes through an async `Mutex` (`apps/server/src/util.ts`).
+- Classification reads related notes/bookmarks from `index.jsonl` and their Markdown bodies before
+  calling the Agent. Confirming a note can append to an existing Markdown item when
+  `mergePreview.targetItemId` is present, or create a collection-style note when the
+  preview provides only a new target title.
+- Deleting a library item removes its Markdown file and rewrites `index.jsonl`; source
+  of truth remains the Markdown directory, so `POST /api/rebuild-index` can recover the index.
 
 ## Agent integration (via `$TUTTI_CLI`)
 
@@ -58,7 +64,7 @@ scope this app only calls, never exposes.
 - `GET /api/context`, `GET /api/agent-providers`, `GET|POST /api/settings`.
 - `POST /api/capture` `{content, url?, source?}`; `GET /api/captures`, `GET /api/captures/:id`.
 - `POST /api/captures/:id/confirm` `{intent?, edits?, writeIssue?}`, `POST /api/captures/:id/reject`.
-- `GET /api/items[?type=]`, `GET /api/items/:id`, `POST /api/rebuild-index`.
+- `GET /api/items[?type=]`, `GET /api/items/:id`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.
 - `POST /tutti/cli/:command` — CLI handlers (receive the `tutti.app.cli.invoke.v1` envelope; params in `input`).
 - `POST /tutti/references/list` + `POST /tutti/references/search` — `@omni-catcher` file references. Each response is `{items, nextCursor}` where every item is a tagged wrapper `{type:"reference", reference:{kind:"file", location:{type:"app-data-relative", path}}}` (a bare file reference is silently dropped by the daemon).
 

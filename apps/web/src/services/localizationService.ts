@@ -11,8 +11,10 @@ export interface ILocalizationService {
 
 export const ILocalizationService = createServiceIdentifier<ILocalizationService>("localizationService");
 
+const DEFAULT_LOCALE: Locale = "en";
+
 export class LocalizationService implements ILocalizationService {
-  readonly locale = new Store<Locale>(normalizeLocale(navigator.language));
+  readonly locale = new Store<Locale>(DEFAULT_LOCALE);
 
   constructor(private readonly host: IHostBridgeService) {}
 
@@ -21,14 +23,19 @@ export class LocalizationService implements ILocalizationService {
   }
 
   async init(): Promise<void> {
-    const hostLocale = await this.host.readLocale().catch(() => null);
-    this.apply(hostLocale);
-    this.host.subscribeLocale((value) => this.apply(value));
+    this.apply((await this.host.readLocale()) || this.browserLocale());
+    this.host.subscribeLocale((locale) => {
+      this.apply(locale || this.browserLocale());
+    });
   }
 
   private apply(value: string | null): void {
-    const next = normalizeLocale(value || navigator.language);
+    const next = normalizeLocale(value || DEFAULT_LOCALE);
     document.documentElement.lang = next;
     this.locale.set(next);
+  }
+
+  private browserLocale(): string {
+    return window.navigator.languages[0] || window.navigator.language || DEFAULT_LOCALE;
   }
 }

@@ -11,9 +11,22 @@ export interface TodoUpgrade {
 }
 
 export interface MergePreview {
+  targetItemId?: string;
   targetTitle: string;
   existingContent: string;
   insertedContent: string;
+}
+
+export interface RelatedItem {
+  id: string;
+  type: Intent;
+  title: string;
+  summary?: string;
+  path: string;
+  tags: string[];
+  score: number;
+  reason: string;
+  excerpt?: string;
 }
 
 export interface MixedItem {
@@ -34,6 +47,7 @@ export interface Classification {
   extractedUrls: string[];
   extractedTasks: string[];
   items: MixedItem[];
+  relatedItems?: RelatedItem[];
   mergePreview?: MergePreview | null;
   todoUpgrade: TodoUpgrade;
   /** "agent" | "rule" | "rule-fallback" */

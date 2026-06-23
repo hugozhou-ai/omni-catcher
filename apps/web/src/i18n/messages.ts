@@ -24,6 +24,8 @@ export interface Messages {
   agentSummary: string;
   originalContent: string;
   existingArticle: string;
+  mergeTarget: string;
+  confirmMerge: string;
   mixedItems: string;
   writeIssue: string;
   tabNote: string;
@@ -32,6 +34,9 @@ export interface Messages {
   emptyPending: string;
   emptyLibrary: string;
   saved: string;
+  deleted: string;
+  deleteItem: string;
+  deleteConfirm: string;
   discarded: string;
   providerReady: string;
   providerNone: string;

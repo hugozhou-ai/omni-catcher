@@ -2,7 +2,16 @@ import { mkdir, readFile, readdir, writeFile, appendFile, rm } from "node:fs/pro
 import { join } from "node:path";
 import { URL } from "node:url";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
-import type { Capture, Classification, ConfirmEdits, Intent, Item, ItemMetaUpdate, PriorityLevel } from "@omni-catcher/shared";
+import type {
+  Capture,
+  Classification,
+  ConfirmEdits,
+  Intent,
+  Item,
+  ItemMetaUpdate,
+  PriorityLevel,
+  RelatedItem,
+} from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { Mutex, extractUrls, nowIso, slugify, todayStamp } from "../util.js";
 import { ruleTasks } from "./classificationService.js";
@@ -26,7 +35,10 @@ export interface IStorageService {
   findItem(id: string): Promise<Item | null>;
   readItem(id: string): Promise<{ item: Item; markdown: string } | null>;
   searchItems(query: string): Promise<Item[]>;
+  findRelatedItems(content: string, limit?: number): Promise<RelatedItem[]>;
   updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
+  mergeIntoItem(id: string, classification: Classification, content: string, capture: Capture, edits: ConfirmEdits): Promise<Item>;
+  deleteItem(id: string): Promise<Item>;
   writeItem(
     intent: Intent,
     classification: Classification,
@@ -183,6 +195,46 @@ export class StorageService implements IStorageService {
     return results;
   }
 
+  async findRelatedItems(content: string, limit = 6): Promise<RelatedItem[]> {
+    const text = content.trim();
+    if (!text) return [];
+    const urls = extractUrls(text).map(normalizeUrlForCompare);
+    const terms = significantTerms(text);
+    const items = await this.readIndex();
+    const related: RelatedItem[] = [];
+    for (const item of items) {
+      if (item.type !== "note" && item.type !== "bookmark") continue;
+      let markdown = "";
+      try {
+        markdown = await readFile(join(this.dataDir, item.path), "utf-8");
+      } catch {
+        /* keep metadata-only comparison */
+      }
+      const haystack = [item.title, item.summary || "", item.type, (item.tags || []).join(" "), markdown]
+        .join("\n")
+        .toLowerCase();
+      const itemUrls = extractUrls(markdown).map(normalizeUrlForCompare);
+      const exactUrl = urls.length > 0 && urls.some((url) => itemUrls.includes(url));
+      const itemTitle = item.title.toLowerCase();
+      const titleInContent = itemTitle.length >= 12 && text.toLowerCase().includes(itemTitle);
+      const termHits = terms.filter((term) => haystack.includes(term));
+      const score = (exactUrl ? 100 : 0) + (titleInContent ? 40 : 0) + termHits.length * 8;
+      if (score < 16) continue;
+      related.push({
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        summary: item.summary,
+        path: item.path,
+        tags: item.tags || [],
+        score,
+        reason: exactUrl ? "same-url" : titleInContent ? "same-title" : "shared-terms",
+        excerpt: excerptMarkdown(markdown),
+      });
+    }
+    return related.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
   async updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item> {
     const existing = await this.findItem(id);
     if (!existing) throw new Error(`item ${id} was not found`);
@@ -210,6 +262,68 @@ export class StorageService implements IStorageService {
       );
     });
     return nextItem;
+  }
+
+  async mergeIntoItem(
+    id: string,
+    classification: Classification,
+    content: string,
+    capture: Capture,
+    edits: ConfirmEdits,
+  ): Promise<Item> {
+    const existing = await this.findItem(id);
+    if (!existing) throw new Error(`item ${id} was not found`);
+    const filePath = join(this.dataDir, existing.path);
+    const markdown = await readFile(filePath, "utf-8");
+    const meta = parseFrontmatter(markdown);
+    const effective = applyEdits(classification, edits);
+    const bodyStart = markdown.indexOf("\n---\n", 4);
+    const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5).trimEnd() : markdown.trimEnd();
+    const incomingBody = buildBody(existing.type, effective, content).trim();
+    const alreadyCaptured = isAlreadyCaptured(markdown, content, effective);
+    const confirmedAt = nowIso();
+    const nextMeta: Record<string, unknown> = {
+      ...meta,
+      tags: mergeStringLists(Array.isArray(meta.tags) ? meta.tags : [], effective.tags),
+      urls: mergeStringLists(Array.isArray(meta.urls) ? meta.urls : [], effective.extractedUrls),
+      confirmedAt,
+    };
+    if (capture.agentSessionId) nextMeta.agentSessionId = capture.agentSessionId;
+    if (capture.agentProvider) nextMeta.agentProvider = capture.agentProvider;
+    const nextBody = alreadyCaptured ? body : `${body}\n\n## Captured ${confirmedAt.slice(0, 10)}\n\n${incomingBody}`;
+    const nextMarkdown = buildFrontmatter(nextMeta) + "\n\n" + nextBody.trim() + "\n";
+    const nextItem: Item = {
+      ...existing,
+      tags: Array.isArray(nextMeta.tags) ? (nextMeta.tags as string[]) : existing.tags,
+      confirmedAt,
+    };
+    await this.mutex.run(async () => {
+      await writeFile(filePath, nextMarkdown, "utf-8");
+      const items = await this.readIndex();
+      const nextIndex = items.map((item) => (item.id === id ? nextItem : item));
+      await writeFile(
+        this.indexPath,
+        nextIndex.map((item) => JSON.stringify(item)).join("\n") + (nextIndex.length ? "\n" : ""),
+        "utf-8",
+      );
+    });
+    return nextItem;
+  }
+
+  async deleteItem(id: string): Promise<Item> {
+    const existing = await this.findItem(id);
+    if (!existing) throw new Error(`item ${id} was not found`);
+    await this.mutex.run(async () => {
+      await rm(join(this.dataDir, existing.path), { force: true });
+      const items = await this.readIndex();
+      const nextIndex = items.filter((item) => item.id !== id);
+      await writeFile(
+        this.indexPath,
+        nextIndex.map((item) => JSON.stringify(item)).join("\n") + (nextIndex.length ? "\n" : ""),
+        "utf-8",
+      );
+    });
+    return existing;
   }
 
   async writeItem(
@@ -390,6 +504,70 @@ function noteBody(classification: Classification, content: string): string {
   if (urls.length) parts.push("## Source\n" + urls.map((url) => `- ${url}`).join("\n"));
   parts.push("## Original\n" + content.trim());
   return parts.join("\n\n").trim() + "\n";
+}
+
+function normalizeUrlForCompare(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.search = "";
+    return parsed.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return url.replace(/[?#].*$/, "").replace(/\/$/, "").toLowerCase();
+  }
+}
+
+function significantTerms(text: string): string[] {
+  const words = text
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 4 && !STOP_WORDS.has(word));
+  return [...new Set(words)].slice(0, 24);
+}
+
+const STOP_WORDS = new Set([
+  "about",
+  "after",
+  "also",
+  "article",
+  "content",
+  "from",
+  "have",
+  "into",
+  "paper",
+  "that",
+  "this",
+  "with",
+  "中文",
+  "摘要",
+  "文章",
+  "论文",
+]);
+
+function excerptMarkdown(markdown: string): string {
+  const bodyStart = markdown.indexOf("\n---\n", 4);
+  const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
+  return body.replace(/\s+/g, " ").trim().slice(0, 700);
+}
+
+function mergeStringLists(left: unknown[], right: unknown[]): string[] {
+  const result: string[] = [];
+  for (const value of [...left, ...right]) {
+    const text = String(value || "").trim();
+    if (text && !result.includes(text)) result.push(text);
+  }
+  return result.slice(0, 12);
+}
+
+function isAlreadyCaptured(markdown: string, content: string, classification: Classification): boolean {
+  const haystack = markdown.toLowerCase();
+  const urls = classification.extractedUrls.length ? classification.extractedUrls : extractUrls(content);
+  if (urls.some((url) => haystack.includes(normalizeUrlForCompare(url)) || haystack.includes(url.toLowerCase()))) {
+    return true;
+  }
+  const title = classification.title.trim().toLowerCase();
+  return title.length >= 12 && haystack.includes(title);
 }
 
 function bookmarkBody(classification: Classification, content: string): string {

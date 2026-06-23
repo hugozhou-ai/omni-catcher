@@ -8,10 +8,11 @@ import { useTranslation } from "../hooks/useTranslation.js";
 export function ItemCard(props: {
   item: Item;
   onClick?: () => void;
+  onDelete?: () => void;
   draggable?: boolean;
   onDragStart?: () => void;
 }): ReactNode {
-  const { item, onClick, draggable, onDragStart } = props;
+  const { item, onClick, onDelete, draggable, onDragStart } = props;
   const { t } = useTranslation();
 
   return (
@@ -30,7 +31,23 @@ export function ItemCard(props: {
           <Icon name={iconFor(item.type)} />
           <Badge intent={item.type} label={t(intentKey(item.type))} />
         </div>
-        <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
+        <div className="item-card-actions">
+          <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
+          {onDelete ? (
+            <button
+              type="button"
+              className="item-card-delete"
+              title={t("deleteItem")}
+              aria-label={t("deleteItem")}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+            >
+              <Icon name="trash" />
+            </button>
+          ) : null}
+        </div>
       </div>
       <h3 className="item-card-title">{item.title || item.id}</h3>
       {item.summary ? <p className="item-card-summary">{item.summary}</p> : null}

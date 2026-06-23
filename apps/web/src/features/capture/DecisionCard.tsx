@@ -36,6 +36,7 @@ export function DecisionCard(props: {
   const [detail, setDetail] = useState(false);
 
   const showIssue = intent === "todo" && data.todoUpgrade?.agentCompletable;
+  const mergeTargetId = intent === "note" ? data.mergePreview?.targetItemId : undefined;
 
   async function confirm(): Promise<void> {
     setBusy(true);
@@ -132,6 +133,11 @@ export function DecisionCard(props: {
           {data.mergePreview ? (
             <section className="detail-section merge-preview">
               <h3>{data.mergePreview.targetTitle || t("existingArticle")}</h3>
+              {data.mergePreview.targetItemId ? (
+                <p className="merge-target">
+                  {t("mergeTarget")} <code>{data.mergePreview.targetItemId}</code>
+                </p>
+              ) : null}
               {data.mergePreview.existingContent ? (
                 <pre className="existing-content">{data.mergePreview.existingContent}</pre>
               ) : null}
@@ -169,6 +175,7 @@ export function DecisionCard(props: {
           urgency={urgency}
           importance={importance}
           writeIssue={writeIssue}
+          mergeTargetId={mergeTargetId}
           busy={busy}
           onUrgency={setUrgency}
           onImportance={setImportance}
@@ -229,6 +236,7 @@ export function DecisionCard(props: {
         urgency={urgency}
         importance={importance}
         writeIssue={writeIssue}
+        mergeTargetId={mergeTargetId}
         busy={busy}
         onUrgency={setUrgency}
         onImportance={setImportance}
@@ -288,6 +296,7 @@ function DecisionFooter(props: {
   urgency: PriorityLevel;
   importance: PriorityLevel;
   writeIssue: boolean;
+  mergeTargetId?: string;
   busy: boolean;
   onUrgency: (urgency: PriorityLevel) => void;
   onImportance: (importance: PriorityLevel) => void;
@@ -301,6 +310,7 @@ function DecisionFooter(props: {
     urgency,
     importance,
     writeIssue,
+    mergeTargetId,
     busy,
     onUrgency,
     onImportance,
@@ -356,7 +366,7 @@ function DecisionFooter(props: {
           {t("reject")}
         </button>
         <button type="button" className="primary" disabled={busy} onClick={() => void onConfirm()}>
-          {t("confirm")}
+          {mergeTargetId ? t("confirmMerge") : t("confirm")}
         </button>
       </div>
     </>

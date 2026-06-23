@@ -5,6 +5,8 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
 import { Icon } from "../../components/Icons.js";
+import { MarkdownViewer } from "../../components/MarkdownViewer.js";
+import { showToast } from "../../platform/toast.js";
 
 export function CollectionPanel(props: { type: Intent; embedded?: boolean }): ReactNode {
   const { type, embedded = false } = props;
@@ -13,7 +15,7 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
   const items = useStore(library.items);
 
   const [query, setQuery] = useState("");
-  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
 
   const titleKey = type === "note" ? "tabNote" : "tabBookmark";
 
@@ -35,7 +37,14 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
 
   async function openItem(item: Item): Promise<void> {
     const result = await library.readItem(item.id);
-    setMarkdown(result.markdown);
+    setSelected(result);
+  }
+
+  async function deleteItem(item: Item): Promise<void> {
+    if (!window.confirm(t("deleteConfirm"))) return;
+    await library.deleteItem(item.id);
+    if (selected?.item.id === item.id) setSelected(null);
+    showToast(t("deleted"));
   }
 
   return (
@@ -58,17 +67,29 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
       ) : (
         <div className="card-grid">
           {filtered.map((item) => (
-            <ItemCard key={item.id} item={item} onClick={() => void openItem(item)} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              onClick={() => void openItem(item)}
+              onDelete={() => void deleteItem(item)}
+            />
           ))}
         </div>
       )}
 
-      {markdown !== null ? (
+      {selected ? (
         <div className="viewer">
-          <button type="button" className="viewer-close" onClick={() => setMarkdown(null)}>
-            ×
-          </button>
-          <pre>{markdown}</pre>
+          <div className="viewer-actions">
+            <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+              {t("deleteItem")}
+            </button>
+            <button type="button" className="viewer-close" onClick={() => setSelected(null)}>
+              ×
+            </button>
+          </div>
+          <div className="viewer-body">
+            <MarkdownViewer markdown={selected.markdown} />
+          </div>
         </div>
       ) : null}
     </section>

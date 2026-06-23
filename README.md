@@ -63,6 +63,10 @@ There is no chat-style conversation UI — each capture is a single round trip:
 1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
 2. **Processing** — a quote of what you sent, spinner, and “Agent is classifying…”.
 3. **Review** — one **decision card** on the same screen: intent pills, editable title/tags, Agent summary, confirm or discard.
+   Related saved notes/bookmarks are included in the Agent prompt. When a pasted paper or
+   article matches an existing item, the card proposes a merge target instead of creating
+   another duplicate note; when a collection-style target is suggested, confirmation can
+   create that summary note for future related captures.
 4. **Done** — returns to idle with an empty input.
 
 If the Agent is unavailable, the card falls back to rule-based classification and shows a short “needs review” notice; you still pick the intent manually.
@@ -70,12 +74,12 @@ If the Agent is unavailable, the card falls back to rule-based classification an
 ### Library
 
 - **All** — card grid across saved notes, bookmarks, and todos.
-- **Notes / Bookmarks** — card grid with `summary` from classification (stored in frontmatter and `index.jsonl`). Click a card to preview the Markdown body.
+- **Notes / Bookmarks** — card grid with `summary` from classification (stored in frontmatter and `index.jsonl`). Click a card to preview the Markdown body rendered with the app Markdown viewer; delete removes both the Markdown source file and index entry.
 - **Todos** — same card layout, plus **urgency** and **importance** (1–3). Toolbar supports filter/sort and a **List ↔ Matrix** toggle:
   - **List** — filter by urgency/importance, sort by newest / urgency / importance.
   - **Matrix** — Eisenhower 2×2 (important·urgent, important·not urgent, …). Drag a card into a quadrant to update its urgency/importance (`PATCH /api/items/:id`).
 
-Logo asset lives at `apps/web/public/omni-catcher-logo.webp` and is served as `/omni-catcher-logo.webp`.
+Large logo asset lives at `apps/web/public/omni-catcher-logo-large.webp` and is served as `/omni-catcher-logo-large.webp`.
 
 ## Architecture
 
@@ -101,7 +105,7 @@ omni-catcher/
 │   │           ├── referenceService.ts     # @mention file search
 │   │           └── issueService.ts         # optional Tutti issue creation
 │   └── web/                    # React + Vite UI
-│       ├── public/             # omni-catcher-logo.webp (capture home branding)
+│       ├── public/             # omni-catcher-logo-large.webp (capture home branding)
 │       └── src/
 │           ├── platform/        # React DI provider + observable Store
 │           ├── services/        # UI services (api/capture/library/...)

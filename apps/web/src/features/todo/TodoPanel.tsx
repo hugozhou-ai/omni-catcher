@@ -5,6 +5,7 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
 import { Icon } from "../../components/Icons.js";
+import { MarkdownViewer } from "../../components/MarkdownViewer.js";
 import { showToast } from "../../platform/toast.js";
 
 type SortKey = "created" | "urgency" | "importance";
@@ -50,7 +51,7 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
   const [filterUrgency, setFilterUrgency] = useState<0 | PriorityLevel>(0);
   const [filterImportance, setFilterImportance] = useState<0 | PriorityLevel>(0);
   const [query, setQuery] = useState("");
-  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
 
   useEffect(() => {
     void library.refresh("todo");
@@ -87,7 +88,14 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
 
   async function openItem(item: Item): Promise<void> {
     const result = await library.readItem(item.id);
-    setMarkdown(result.markdown);
+    setSelected(result);
+  }
+
+  async function deleteItem(item: Item): Promise<void> {
+    if (!window.confirm(t("deleteConfirm"))) return;
+    await library.deleteItem(item.id);
+    if (selected?.item.id === item.id) setSelected(null);
+    showToast(t("deleted"));
   }
 
   async function dropOnQuadrant(quadrant: Quadrant, itemId: string): Promise<void> {
@@ -164,7 +172,12 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
       ) : view === "list" ? (
         <div className="card-grid">
           {filtered.map((item) => (
-            <ItemCard key={item.id} item={item} onClick={() => void openItem(item)} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              onClick={() => void openItem(item)}
+              onDelete={() => void deleteItem(item)}
+            />
           ))}
         </div>
       ) : (
@@ -183,7 +196,13 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
               <h3>{t(QUADRANT_LABELS[q])}</h3>
               <div className="matrix-items">
                 {byQuadrant[q].map((item) => (
-                  <ItemCard key={item.id} item={item} draggable onClick={() => void openItem(item)} />
+                  <ItemCard
+                    key={item.id}
+                    item={item}
+                    draggable
+                    onClick={() => void openItem(item)}
+                    onDelete={() => void deleteItem(item)}
+                  />
                 ))}
               </div>
             </div>
@@ -191,12 +210,19 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
         </div>
       )}
 
-      {markdown !== null ? (
+      {selected ? (
         <div className="viewer">
-          <button type="button" className="viewer-close" onClick={() => setMarkdown(null)}>
-            ×
-          </button>
-          <pre>{markdown}</pre>
+          <div className="viewer-actions">
+            <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+              {t("deleteItem")}
+            </button>
+            <button type="button" className="viewer-close" onClick={() => setSelected(null)}>
+              ×
+            </button>
+          </div>
+          <div className="viewer-body">
+            <MarkdownViewer markdown={selected.markdown} />
+          </div>
         </div>
       ) : null}
     </section>

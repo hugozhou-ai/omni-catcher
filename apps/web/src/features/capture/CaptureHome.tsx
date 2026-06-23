@@ -1,4 +1,12 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { Capture } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
@@ -10,6 +18,54 @@ import { DecisionCard } from "./DecisionCard.js";
 import { showToast } from "../../platform/toast.js";
 
 type Phase = "idle" | "processing" | "review";
+type CaretBox = { height: number; visible: boolean; x: number; y: number };
+
+function toEvenPixel(value: number): number {
+  return Math.max(0, Math.round(value / 2) * 2);
+}
+
+function toEvenOffset(value: number): number {
+  return Math.round(value / 2) * 2;
+}
+
+function resolveTextareaCaret(textarea: HTMLTextAreaElement): CaretBox {
+  const computed = window.getComputedStyle(textarea);
+  const marker = document.createElement("span");
+  const mirror = document.createElement("div");
+  const selectionStart = textarea.selectionStart ?? 0;
+
+  mirror.style.position = "absolute";
+  mirror.style.top = "-10000px";
+  mirror.style.left = "-10000px";
+  mirror.style.visibility = "hidden";
+  mirror.style.boxSizing = "border-box";
+  mirror.style.width = `${toEvenPixel(textarea.clientWidth)}px`;
+  mirror.style.minHeight = `${toEvenPixel(textarea.clientHeight)}px`;
+  mirror.style.border = computed.border;
+  mirror.style.padding = computed.padding;
+  mirror.style.font = computed.font;
+  mirror.style.letterSpacing = computed.letterSpacing;
+  mirror.style.lineHeight = computed.lineHeight;
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.overflowWrap = "break-word";
+  mirror.style.wordBreak = "break-word";
+
+  mirror.textContent = textarea.value.slice(0, selectionStart) || "\u200b";
+  marker.textContent = "\u200b";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const markerRect = marker.getBoundingClientRect();
+  const mirrorRect = mirror.getBoundingClientRect();
+  const lineHeight = Number.parseFloat(computed.lineHeight) || 26;
+  const fontSize = Number.parseFloat(computed.fontSize) || 16;
+  const height = toEvenPixel(Math.min(lineHeight, Math.max(fontSize + 6, lineHeight - 4)));
+  const x = toEvenPixel(markerRect.left - mirrorRect.left - textarea.scrollLeft);
+  const y = toEvenOffset(markerRect.top - mirrorRect.top - textarea.scrollTop + (lineHeight - height) / 2 - 4);
+
+  mirror.remove();
+  return { height, visible: document.activeElement === textarea, x, y };
+}
 
 export function CaptureHome(): ReactNode {
   const { t } = useTranslation();
@@ -24,6 +80,8 @@ export function CaptureHome(): ReactNode {
   const [providers, setProviders] = useState<string[]>([]);
   const [providerHint, setProviderHint] = useState("");
   const [preferred, setPreferred] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 28, y: 22 });
 
   const activeCapture: Capture | null =
     activeId ? captures.find((c) => c.id === activeId) ?? null : null;
@@ -88,18 +146,40 @@ export function CaptureHome(): ReactNode {
     }
   }
 
+  function refreshCaret(): void {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    window.requestAnimationFrame(() => {
+      const current = textareaRef.current;
+      if (!current) return;
+      setCaretBox(resolveTextareaCaret(current));
+    });
+  }
+
+  useLayoutEffect(() => {
+    if (phase !== "idle") return;
+    refreshCaret();
+  }, [content, phase]);
+
+  const caretStyle: CSSProperties = {
+    height: `${caretBox.height}px`,
+    transform: `translate(${caretBox.x}px, ${caretBox.y}px)`,
+  };
+
   return (
     <div className="capture-home">
       <div className="capture-hero">
         <div className="capture-brand">
           <div className="capture-logo-frame">
-            <img src="/omni-catcher-logo.webp" alt="Omni Catcher" className="capture-logo" />
+            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" />
           </div>
         </div>
         <div className="capture-status-line">
           <span className="status-chip">
             <Icon name="spark" />
-            {providers.length ? preferred || t("providerDefaultOption") : t("providerNone")}
+            <span className="status-chip-text">
+              {providers.length ? preferred || t("providerDefaultOption") : t("providerNone")}
+            </span>
           </span>
           {captures.length ? (
             <span className="status-chip muted">{captures.length}</span>
@@ -124,13 +204,30 @@ export function CaptureHome(): ReactNode {
 
       {phase === "idle" ? (
         <div className="capture-sheet">
-          <textarea
-            className="capture-textarea"
-            value={content}
-            placeholder={t("capturePlaceholder")}
-            onChange={(event) => setContent(event.target.value)}
-            onKeyDown={onKeyDown}
-          />
+          <div className="capture-textarea-wrap">
+            <textarea
+              ref={textareaRef}
+              className="capture-textarea"
+              value={content}
+              placeholder={t("capturePlaceholder")}
+              onBlur={() => setCaretBox((box) => ({ ...box, visible: false }))}
+              onChange={(event) => {
+                setContent(event.target.value);
+                refreshCaret();
+              }}
+              onClick={refreshCaret}
+              onFocus={refreshCaret}
+              onKeyDown={onKeyDown}
+              onKeyUp={refreshCaret}
+              onScroll={refreshCaret}
+              onSelect={refreshCaret}
+            />
+            <span
+              aria-hidden="true"
+              className={`capture-custom-caret ${caretBox.visible ? "visible" : ""}`}
+              style={caretStyle}
+            />
+          </div>
           <div className="capture-input-bar">
             <div className="capture-input-meta">
               {providerHint ? <span className="hint">{providerHint}</span> : null}

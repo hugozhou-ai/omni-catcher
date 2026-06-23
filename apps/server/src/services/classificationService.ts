@@ -2,16 +2,16 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
 import type { ILogService } from "@omni-catcher/shared/platform";
-import type { Classification, ClassificationIntent, MixedItem } from "@omni-catcher/shared";
+import type { Classification, ClassificationIntent, MixedItem, RelatedItem } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { extractUrls, firstNonemptyLine } from "../util.js";
 import type { ITuttiCliService } from "./tuttiCliService.js";
 
 export interface IClassificationService {
   rulePreview(content: string, url: string): Classification;
-  classifyPrompt(content: string): Promise<string>;
+  classifyPrompt(content: string, relatedItems?: RelatedItem[]): Promise<string>;
   parseStrictJson(text: string): unknown;
-  normalize(parsed: Record<string, unknown>, content: string): Classification;
+  normalize(parsed: Record<string, unknown>, content: string, relatedItems?: RelatedItem[]): Classification;
 }
 
 export const IClassificationService = createServiceIdentifier<IClassificationService>("classificationService");
@@ -55,10 +55,12 @@ export class ClassificationService implements IClassificationService {
     };
   }
 
-  async classifyPrompt(content: string): Promise<string> {
+  async classifyPrompt(content: string, relatedItems: RelatedItem[] = []): Promise<string> {
     const template = await readFile(resolve(this.config.promptsDir, "classify.md"), "utf-8");
     const enriched = await enrichContentForClassification(content, this.cli, this.log);
-    return template.replace("{{CONTENT}}", enriched);
+    return template
+      .replace("{{EXISTING_ITEMS}}", formatRelatedItemsForPrompt(relatedItems))
+      .replace("{{CONTENT}}", enriched);
   }
 
   parseStrictJson(text: string): unknown {
@@ -76,7 +78,7 @@ export class ClassificationService implements IClassificationService {
     return JSON.parse(candidate);
   }
 
-  normalize(parsed: Record<string, unknown>, content: string): Classification {
+  normalize(parsed: Record<string, unknown>, content: string, relatedItems: RelatedItem[] = []): Classification {
     let intent = String(parsed.primaryIntent || "note").trim().toLowerCase() as ClassificationIntent;
     if (!VALID_INTENTS.includes(intent)) intent = "note";
     const urls = Array.isArray(parsed.extractedUrls)
@@ -88,7 +90,7 @@ export class ClassificationService implements IClassificationService {
       ? (parsed.alternatives as Classification["alternatives"])
       : [];
     const items = Array.isArray(parsed.items) ? (parsed.items as MixedItem[]) : [];
-    const mergePreview = normalizeMergePreview(parsed.mergePreview);
+    const mergePreview = normalizeMergePreview(parsed.mergePreview, relatedItems);
     const upgrade = (parsed.todoUpgrade as Record<string, unknown>) || {};
     return {
       primaryIntent: intent,
@@ -100,6 +102,7 @@ export class ClassificationService implements IClassificationService {
       extractedUrls: urls.map((u) => u.trim()).filter(Boolean),
       extractedTasks: tasks.map((t) => t.trim()).filter(Boolean),
       items,
+      relatedItems,
       mergePreview,
       todoUpgrade: {
         agentCompletable: Boolean(upgrade.agentCompletable),
@@ -110,17 +113,41 @@ export class ClassificationService implements IClassificationService {
   }
 }
 
-function normalizeMergePreview(value: unknown): Classification["mergePreview"] {
+function normalizeMergePreview(value: unknown, relatedItems: RelatedItem[]): Classification["mergePreview"] {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
+  const rawTargetItemId = String(raw.targetItemId || "").trim();
   const existingContent = String(raw.existingContent || "").trim();
   const insertedContent = String(raw.insertedContent || "").trim();
   if (!existingContent && !insertedContent) return null;
+  const target = relatedItems.find((item) => item.id === rawTargetItemId);
   return {
-    targetTitle: String(raw.targetTitle || "").trim(),
+    targetItemId: target?.id || undefined,
+    targetTitle: String(raw.targetTitle || target?.title || "").trim(),
     existingContent,
     insertedContent,
   };
+}
+
+function formatRelatedItemsForPrompt(relatedItems: RelatedItem[]): string {
+  if (!relatedItems.length) return "No related saved items were found.";
+  return relatedItems
+    .map((item, index) =>
+      [
+        `Related item ${index + 1}:`,
+        `- id: ${item.id}`,
+        `- type: ${item.type}`,
+        `- title: ${item.title}`,
+        item.summary ? `- summary: ${item.summary}` : "",
+        item.tags.length ? `- tags: ${item.tags.join(", ")}` : "",
+        `- path: ${item.path}`,
+        `- match: ${item.reason} (${item.score})`,
+        item.excerpt ? `- excerpt: ${item.excerpt}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n\n");
 }
 
 const MAX_URL_CONTEXTS = 2;

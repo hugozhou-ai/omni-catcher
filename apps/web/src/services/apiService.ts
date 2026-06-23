@@ -4,6 +4,7 @@ export interface IApiService {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   patch<T>(path: string, body?: unknown): Promise<T>;
+  delete<T>(path: string): Promise<T>;
 }
 
 export const IApiService = createServiceIdentifier<IApiService>("apiService");
@@ -29,6 +30,10 @@ export class HttpApiService implements IApiService {
       headers: hasBody ? { "Content-Type": "application/json" } : undefined,
       body: hasBody ? JSON.stringify(body) : undefined,
     });
+  }
+
+  delete<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: "DELETE" });
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {

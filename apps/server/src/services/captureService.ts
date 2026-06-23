@@ -1,5 +1,5 @@
 import { createServiceIdentifier, type ILogService } from "@omni-catcher/shared/platform";
-import type { Capture, CaptureSource, ConfirmEdits, ConfirmResult, Intent, Item } from "@omni-catcher/shared";
+import type { Capture, CaptureSource, Classification, ConfirmEdits, ConfirmResult, Intent, Item } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { captureId, nowIso } from "../util.js";
 import type { IStorageService } from "./storageService.js";
@@ -57,13 +57,15 @@ export class CaptureService implements ICaptureService {
     try {
       const settings = await this.storage.readSettings();
       const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
-      const prompt = await this.classification.classifyPrompt(capture.content);
+      const relatedItems = await this.storage.findRelatedItems(capture.content);
+      const prompt = await this.classification.classifyPrompt(capture.content, relatedItems);
       this.log.info(
         `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
           event: "start",
           id,
           contentLength: capture.content.length,
           promptLength: prompt.length,
+          relatedCount: relatedItems.length,
           preferredProvider: preferredProvider || "",
         })}`,
       );
@@ -76,7 +78,9 @@ export class CaptureService implements ICaptureService {
       const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
       if (!parsed.source) parsed.source = "agent";
       capture = (await this.storage.readCapture(id)) || capture;
-      capture.classification = this.classification.normalize(parsed, capture.content);
+      capture.classification = withDeterministicMergePreview(
+        this.classification.normalize(parsed, capture.content, relatedItems),
+      );
       capture.agentSessionId = outcome.sessionId;
       capture.agentProvider = outcome.provider;
       capture.status = "classified";
@@ -101,7 +105,9 @@ export class CaptureService implements ICaptureService {
       );
       capture = (await this.storage.readCapture(id)) || capture;
       const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
-      capture.classification = this.classification.normalize(fallbackRaw, capture.content);
+      capture.classification = withDeterministicMergePreview(
+        this.classification.normalize(fallbackRaw, capture.content, await this.storage.findRelatedItems(capture.content)),
+      );
       capture.status = "needs_review";
       capture.error = (error as Error).message;
     }
@@ -146,7 +152,22 @@ export class CaptureService implements ICaptureService {
       }
     } else {
       const effective = (intent in INTENT_DIRS ? intent : "note") as Intent;
-      written.push(await this.storage.writeItem(effective, classification, capture.content, capture, edits));
+      const mergeTargetId = effective === "note" ? classification.mergePreview?.targetItemId : undefined;
+      if (mergeTargetId) {
+        written.push(await this.storage.mergeIntoItem(mergeTargetId, classification, capture.content, capture, edits));
+      } else if (effective === "note" && shouldCreateMergePreviewNote(classification)) {
+        written.push(
+          await this.storage.writeItem(
+            "note",
+            classificationForMergePreviewNote(classification),
+            mergePreviewNoteContent(classification, capture.content),
+            capture,
+            edits,
+          ),
+        );
+      } else {
+        written.push(await this.storage.writeItem(effective, classification, capture.content, capture, edits));
+      }
     }
     let issue = null;
     if (writeIssue && intent === "todo") {
@@ -158,6 +179,44 @@ export class CaptureService implements ICaptureService {
     await this.storage.deleteCapture(id);
     return { items: written, issue };
   }
+}
+
+function shouldCreateMergePreviewNote(classification: Classification): boolean {
+  const preview = classification.mergePreview;
+  return Boolean(preview && !preview.targetItemId && preview.targetTitle && preview.insertedContent);
+}
+
+function classificationForMergePreviewNote(classification: Classification): Classification {
+  const preview = classification.mergePreview;
+  if (!preview || !preview.targetTitle) return classification;
+  return {
+    ...classification,
+    title: preview.targetTitle,
+    summary: classification.summary || preview.insertedContent,
+  };
+}
+
+function mergePreviewNoteContent(classification: Classification, content: string): string {
+  const preview = classification.mergePreview;
+  if (!preview) return content;
+  return [preview.existingContent, preview.insertedContent || content].filter(Boolean).join("\n\n").trim();
+}
+
+function withDeterministicMergePreview(classification: Classification): Classification {
+  if (classification.mergePreview?.targetItemId || classification.primaryIntent !== "note") return classification;
+  const exact = (classification.relatedItems || []).find(
+    (item) => item.type === "note" && (item.reason === "same-url" || item.reason === "same-title"),
+  );
+  if (!exact) return classification;
+  return {
+    ...classification,
+    mergePreview: {
+      targetItemId: exact.id,
+      targetTitle: exact.title,
+      existingContent: exact.excerpt || exact.summary || exact.title,
+      insertedContent: classification.summary || classification.title,
+    },
+  };
 }
 
 function normalizeIntent(value: unknown): Intent | "" {

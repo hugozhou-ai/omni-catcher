@@ -9,7 +9,8 @@ export type IconName =
   | "grid"
   | "list"
   | "search"
-  | "spark";
+  | "spark"
+  | "trash";
 
 export function Icon(props: { name: IconName; className?: string }): ReactNode {
   const { name, className = "icon" } = props;
@@ -29,68 +30,78 @@ export function Icon(props: { name: IconName; className?: string }): ReactNode {
 function pathFor(name: IconName): ReactNode {
   switch (name) {
     case "bookmark":
-      return <path d="M7 4.75h10v14.5l-5-3.1-5 3.1V4.75Z" />;
+      return <path d="M8 4h8v16l-4-2-4 2V4Z" />;
     case "capture":
       return (
         <>
-          <path d="M5 8.2V5.5h2.7" />
-          <path d="M16.3 5.5H19v2.7" />
-          <path d="M19 15.8v2.7h-2.7" />
-          <path d="M7.7 18.5H5v-2.7" />
-          <path d="M8.5 12h7" />
-          <path d="M12 8.5v7" />
+          <path d="M6 8V6h2" />
+          <path d="M16 6h2v2" />
+          <path d="M18 16v2h-2" />
+          <path d="M8 18H6v-2" />
+          <path d="M8 12h8" />
+          <path d="M12 8v8" />
         </>
       );
     case "check":
       return (
         <>
-          <path d="M8.2 12.4l2.4 2.4 5.2-5.6" />
-          <path d="M5.5 4.75h13v14.5h-13V4.75Z" />
+          <path d="M6 12l4 4 8-8" />
+          <path d="M6 4h12v16H6V4Z" />
         </>
       );
     case "chevronRight":
-      return <path d="M9.5 6.5 15 12l-5.5 5.5" />;
+      return <path d="M10 6l6 6-6 6" />;
     case "document":
       return (
         <>
-          <path d="M7 4.75h7.2L17 7.55v11.7H7V4.75Z" />
-          <path d="M14 5v3h3" />
-          <path d="M9.5 11h5" />
-          <path d="M9.5 14h4" />
+          <path d="M8 4h6l4 4v12H8V4Z" />
+          <path d="M14 4v4h4" />
+          <path d="M10 12h6" />
+          <path d="M10 14h4" />
         </>
       );
     case "grid":
       return (
         <>
-          <path d="M5 5h6v6H5V5Z" />
-          <path d="M13 5h6v6h-6V5Z" />
-          <path d="M5 13h6v6H5v-6Z" />
-          <path d="M13 13h6v6h-6v-6Z" />
+          <path d="M4 4h6v6H4V4Z" />
+          <path d="M14 4h6v6h-6V4Z" />
+          <path d="M4 14h6v6H4v-6Z" />
+          <path d="M14 14h6v6h-6v-6Z" />
         </>
       );
     case "list":
       return (
         <>
-          <path d="M8 7h11" />
-          <path d="M8 12h11" />
-          <path d="M8 17h11" />
-          <path d="M5 7h.01" />
-          <path d="M5 12h.01" />
-          <path d="M5 17h.01" />
+          <path d="M8 6h12" />
+          <path d="M8 12h12" />
+          <path d="M8 18h12" />
+          <path d="M4 6h2" />
+          <path d="M4 12h2" />
+          <path d="M4 18h2" />
         </>
       );
     case "search":
       return (
         <>
-          <path d="M10.8 17.1a6.3 6.3 0 1 1 0-12.6 6.3 6.3 0 0 1 0 12.6Z" />
-          <path d="m15.4 15.4 4.1 4.1" />
+          <circle cx="10" cy="10" r="6" />
+          <path d="m14 14 6 6" />
         </>
       );
     case "spark":
       return (
         <>
-          <path d="M12 3.75 13.5 9l4.75 1.5-4.75 1.5L12 17.25 10.5 12l-4.75-1.5L10.5 9 12 3.75Z" />
-          <path d="m18.5 4.75.55 1.8 1.7.55-1.7.55-.55 1.8-.55-1.8-1.7-.55 1.7-.55.55-1.8Z" />
+          <path d="M12 4l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z" />
+          <path d="M18 4l2 2-2 2-2-2 2-2Z" />
+        </>
+      );
+    case "trash":
+      return (
+        <>
+          <path d="M6 8h12" />
+          <path d="M10 8V6h4v2" />
+          <path d="M8 8l2 12h4l2-12" />
+          <path d="M10 12v6" />
+          <path d="M14 12v6" />
         </>
       );
     default:

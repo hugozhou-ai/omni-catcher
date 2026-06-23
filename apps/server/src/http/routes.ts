@@ -117,6 +117,14 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     }
   });
 
+  app.delete<{ Params: { id: string } }>("/api/items/:id", async (request, reply) => {
+    try {
+      return { item: await storage.deleteItem(request.params.id), deleted: true };
+    } catch (error) {
+      return reply.code(404).send({ error: (error as Error).message });
+    }
+  });
+
   app.post("/api/rebuild-index", async () => ({ items: await storage.rebuildIndex() }));
 
   // -- Tutti surfaces ------------------------------------------------------

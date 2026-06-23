@@ -8,6 +8,7 @@ export interface ILibraryService {
   refresh(type?: string): Promise<void>;
   readItem(id: string): Promise<{ item: Item; markdown: string }>;
   updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
+  deleteItem(id: string): Promise<Item>;
 }
 
 export const ILibraryService = createServiceIdentifier<ILibraryService>("libraryService");
@@ -31,6 +32,13 @@ export class LibraryService implements ILibraryService {
     const data = await this.api.patch<{ item: Item }>(`/api/items/${id}`, update);
     const current = this.items.get();
     this.items.set(current.map((item) => (item.id === id ? data.item : item)));
+    return data.item;
+  }
+
+  async deleteItem(id: string): Promise<Item> {
+    const data = await this.api.delete<{ item: Item }>(`/api/items/${id}`);
+    const current = this.items.get();
+    this.items.set(current.filter((item) => item.id !== id));
     return data.item;
   }
 }

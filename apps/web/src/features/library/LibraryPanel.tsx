@@ -5,8 +5,10 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
 import { Icon } from "../../components/Icons.js";
+import { MarkdownViewer } from "../../components/MarkdownViewer.js";
 import { CollectionPanel } from "./CollectionPanel.js";
 import { TodoPanel } from "../todo/TodoPanel.js";
+import { showToast } from "../../platform/toast.js";
 
 type LibraryType = "all" | Exclude<Intent, "mixed">;
 
@@ -23,7 +25,7 @@ export function LibraryPanel(): ReactNode {
   const items = useStore(library.items);
   const [type, setType] = useState<LibraryType>("all");
   const [query, setQuery] = useState("");
-  const [markdown, setMarkdown] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
 
   useEffect(() => {
     if (type === "all") void library.refresh();
@@ -43,7 +45,14 @@ export function LibraryPanel(): ReactNode {
 
   async function openItem(item: Item): Promise<void> {
     const result = await library.readItem(item.id);
-    setMarkdown(result.markdown);
+    setSelected(result);
+  }
+
+  async function deleteItem(item: Item): Promise<void> {
+    if (!window.confirm(t("deleteConfirm"))) return;
+    await library.deleteItem(item.id);
+    if (selected?.item.id === item.id) setSelected(null);
+    showToast(t("deleted"));
   }
 
   return (
@@ -63,7 +72,7 @@ export function LibraryPanel(): ReactNode {
               className={type === filter.type ? "active" : ""}
               onClick={() => {
                 setType(filter.type);
-                setMarkdown(null);
+                setSelected(null);
               }}
             >
               {t(filter.key)}
@@ -89,17 +98,29 @@ export function LibraryPanel(): ReactNode {
           ) : (
             <div className="card-grid">
               {filtered.map((item) => (
-                <ItemCard key={item.id} item={item} onClick={() => void openItem(item)} />
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  onClick={() => void openItem(item)}
+                  onDelete={() => void deleteItem(item)}
+                />
               ))}
             </div>
           )}
 
-          {markdown !== null ? (
+          {selected ? (
             <div className="viewer">
-              <button type="button" className="viewer-close" onClick={() => setMarkdown(null)}>
-                x
-              </button>
-              <pre>{markdown}</pre>
+              <div className="viewer-actions">
+                <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+                  {t("deleteItem")}
+                </button>
+                <button type="button" className="viewer-close" onClick={() => setSelected(null)}>
+                  x
+                </button>
+              </div>
+              <div className="viewer-body">
+                <MarkdownViewer markdown={selected.markdown} />
+              </div>
             </div>
           ) : null}
         </div>

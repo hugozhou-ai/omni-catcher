@@ -30,8 +30,16 @@ Rules:
 - "extractedTasks" only for todo-like content; otherwise [].
 - "extractedUrls" lists every URL found; otherwise [].
 - "todoUpgrade.agentCompletable" is true only when a todo could plausibly be completed by an autonomous coding/research agent (e.g. "look up the X API docs", "draft a script"). Set "suggestedIssueTitle" to a short imperative title in that case.
-- "mergePreview" is null unless you are explicitly organizing this capture into an existing article and you have enough context for that target. In that case use { "targetTitle": "", "existingContent": "", "insertedContent": "" }.
+- Always inspect "Related saved items" before deciding whether to create a new note. If the capture is the same paper/article/resource as a related item, or should clearly be appended to an existing collection note, set "mergePreview" instead of creating an unrelated standalone note.
+- For repeated papers/articles with the same title, URL, DOI, arXiv id, or unmistakably identical subject, set mergePreview.targetItemId to the related item id so confirmation updates that note rather than creating a duplicate.
+- When a new paper/article belongs with prior paper/article notes and there is an existing collection or summary document in related items, set mergePreview.targetItemId to that collection. If there is no collection yet, use a clear targetTitle such as "Paper Reading Summary" or "论文阅读汇总" and make insertedContent a concise section that can become the first aggregated entry.
+- "mergePreview" is null unless you have enough related-item context for a merge/update suggestion. When present, use { "targetItemId": "related item id when available", "targetTitle": "", "existingContent": "", "insertedContent": "" }.
 - Keep "tags" to at most 5 entries.
+
+Related saved items:
+---
+{{EXISTING_ITEMS}}
+---
 
 Captured content:
 ---

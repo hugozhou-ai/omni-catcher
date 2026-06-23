@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "../hooks/useTranslation.js";
 import { Icon, type IconName } from "./Icons.js";
 
@@ -10,6 +10,7 @@ export function Sidebar(props: {
 }): ReactNode {
   const { active, onNavigate } = props;
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(true);
 
   const items: { view: AppView; label: string; icon: IconName; primary?: boolean }[] = [
     { view: "capture", label: t("navHome"), icon: "capture", primary: true },
@@ -17,9 +18,23 @@ export function Sidebar(props: {
   ];
 
   return (
-    <nav className="sidebar" aria-label="Main">
-      <div className="sidebar-brand" aria-hidden="true">
-        <img src="/omni-catcher-icon.png" alt="" />
+    <nav className={`sidebar ${expanded ? "expanded" : "collapsed"}`} aria-label="Main">
+      <div className="sidebar-brand">
+        <button
+          type="button"
+          className="sidebar-brand-toggle"
+          aria-label={expanded ? t("collapseSidebar") : t("expandSidebar")}
+          aria-expanded={expanded}
+          title={expanded ? t("collapseSidebar") : t("expandSidebar")}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? (
+            <img src="/omni-catcher-logo.webp" alt="Omni Catcher" className="sidebar-logo-wide" />
+          ) : (
+            <img src="/omni-catcher-icon.png" alt="Omni Catcher" className="sidebar-logo-mark" />
+          )}
+          <Icon name="chevronRight" className="sidebar-toggle-icon" />
+        </button>
       </div>
       {items.map(({ view, label, icon, primary }) => (
         <button

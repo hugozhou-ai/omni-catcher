@@ -35,6 +35,8 @@ export const zhCN: Messages = {
   intentMixed: "混合",
   navHome: "捕获",
   navLibrary: "资料库",
+  collapseSidebar: "收起侧边栏",
+  expandSidebar: "展开侧边栏",
   urgency: "紧急程度",
   importance: "重要程度",
   priorityLow: "低",

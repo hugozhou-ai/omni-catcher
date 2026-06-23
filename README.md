@@ -25,6 +25,9 @@ Saved content is organized later in the secondary **Library** area.
 | Capture | **Capture** | Primary entry point: paste content, run Agent classification, confirm once |
 | Grid | **Library** | Secondary organization area for all saved results |
 
+The sidebar can collapse into an icon-only rail. Expanded mode shows the full Omni
+Catcher wordmark; collapsed mode uses the compact app icon.
+
 ### Capture flow (in-place decision card)
 
 There is no chat-style conversation UI — each capture is a single round trip:

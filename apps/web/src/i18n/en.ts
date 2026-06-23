@@ -35,6 +35,8 @@ export const en: Messages = {
   intentMixed: "Mixed",
   navHome: "Capture",
   navLibrary: "Library",
+  collapseSidebar: "Collapse sidebar",
+  expandSidebar: "Expand sidebar",
   urgency: "Urgency",
   importance: "Importance",
   priorityLow: "Low",

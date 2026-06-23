@@ -35,6 +35,8 @@ export interface Messages {
   intentMixed: string;
   navHome: string;
   navLibrary: string;
+  collapseSidebar: string;
+  expandSidebar: string;
   urgency: string;
   importance: string;
   priorityLow: string;

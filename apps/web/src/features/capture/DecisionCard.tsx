@@ -263,25 +263,27 @@ function DecisionEditor(props: {
 
   return (
     <>
-      <div className="field">
-        <label>{t("changeIntent")}</label>
-        <select value={intent} onChange={(event) => onIntent(event.target.value as Intent)}>
-          {selectable.map((option) => (
-            <option key={option} value={option}>
-              {t(intentKey(option))}
-            </option>
-          ))}
-        </select>
+      <div className="decision-title-row">
+        <label className="field decision-title-field">
+          <span>{t("title")}</span>
+          <input type="text" value={title} onChange={(event) => onTitle(event.target.value)} />
+        </label>
+        <label className="field decision-intent-field">
+          <span>{t("changeIntent")}</span>
+          <select value={intent} onChange={(event) => onIntent(event.target.value as Intent)}>
+            {selectable.map((option) => (
+              <option key={option} value={option}>
+                {t(intentKey(option))}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       {data.primaryIntent !== intent ? (
         <div className="notice info">
           {t("agentSuggested")} {t(intentKey(data.primaryIntent === "clarify" ? "note" : data.primaryIntent))}
         </div>
       ) : null}
-      <div className="field">
-        <label>{t("title")}</label>
-        <input type="text" value={title} onChange={(event) => onTitle(event.target.value)} />
-      </div>
       <div className="field">
         <label>{t("tags")}</label>
         <input type="text" value={tags} onChange={(event) => onTags(event.target.value)} />

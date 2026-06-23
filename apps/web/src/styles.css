@@ -290,8 +290,8 @@ select:focus {
   min-height: 50px;
   margin-bottom: 10px;
   color: var(--accent);
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: transparent;
+  border-color: transparent;
   font-weight: 720;
 }
 
@@ -300,22 +300,10 @@ select:focus {
   height: 20px;
 }
 
-.sidebar-btn.sidebar-primary.active {
-  color: var(--accent-text);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
 .sidebar-btn.active {
   color: var(--accent);
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 34%, transparent);
-}
-
-.sidebar-btn.sidebar-primary.active {
-  color: var(--accent-text);
-  background: var(--accent);
-  border-color: var(--accent);
 }
 
 .capture-home {

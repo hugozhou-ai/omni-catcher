@@ -23,7 +23,9 @@ Rules:
 - "bookmark": a tool website, product, dataset, reference/resource page, or one or more URLs the user wants to save for later use.
 - "todo": actionable tasks ("buy milk", "finish the report", numbered action lists).
 - "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tasks": [] }.
-- Respond in the same language as the captured content for title/summary/tags.
+- Respond in the same language as the captured content for title/tags.
+- If the captured content or readable page content is primarily English, "summary" MUST be bilingual with English first and Chinese second, using this exact shape: "English: ...\n中文：...". Keep both sides concise and semantically aligned. Apply the same bilingual rule to each mixed item summary when that sub-item is English.
+- For non-English content, write "summary" in the same language as the captured content unless the user explicitly asks otherwise.
 - "confidence" is between 0 and 1.
 - "extractedTasks" only for todo-like content; otherwise [].
 - "extractedUrls" lists every URL found; otherwise [].

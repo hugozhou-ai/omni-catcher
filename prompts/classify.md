@@ -17,8 +17,9 @@ Output STRICT JSON only. No prose, no markdown fences, no explanation. The JSON 
 }
 
 Rules:
-- "note": prose, an article, a long paste, or an article URL worth summarizing.
-- "bookmark": one or more URLs the user wants to save, possibly with short descriptions.
+- Do not classify something as "bookmark" merely because it contains a URL. Use the URL context if present.
+- "note": prose, an article, a paper, a tutorial, a long paste, or a URL whose title/description/excerpt indicates knowledge content worth summarizing.
+- "bookmark": a tool website, product, dataset, reference/resource page, or one or more URLs the user wants to save for later use.
 - "todo": actionable tasks ("buy milk", "finish the report", numbered action lists).
 - "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tasks": [] }.
 - Respond in the same language as the captured content for title/summary/tags.

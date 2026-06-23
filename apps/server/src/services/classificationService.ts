@@ -25,7 +25,9 @@ export class ClassificationService implements IClassificationService {
     if (url && !urls.includes(url)) urls.unshift(url);
     const tasks = ruleTasks(text);
     let intent: ClassificationIntent;
-    if (urls.length && text.length <= 600 && !looksLikeProse(text)) intent = "bookmark";
+    if (urls.length && text.length <= 600 && !looksLikeProse(text)) {
+      intent = urls.some(looksLikeDocumentUrl) ? "note" : "bookmark";
+    }
     else if (tasks.length >= 1 && text.length <= 400) intent = "todo";
     else if (text.length > 280 || looksLikeProse(text)) intent = "note";
     else if (urls.length) intent = "bookmark";
@@ -48,7 +50,8 @@ export class ClassificationService implements IClassificationService {
 
   async classifyPrompt(content: string): Promise<string> {
     const template = await readFile(resolve(this.config.promptsDir, "classify.md"), "utf-8");
-    return template.replace("{{CONTENT}}", content);
+    const enriched = await enrichContentForClassification(content);
+    return template.replace("{{CONTENT}}", enriched);
   }
 
   parseStrictJson(text: string): unknown {
@@ -113,6 +116,123 @@ function normalizeMergePreview(value: unknown): Classification["mergePreview"] {
   };
 }
 
+async function enrichContentForClassification(content: string): Promise<string> {
+  const text = (content || "").trim();
+  const urls = extractUrls(text).slice(0, 3);
+  if (!urls.length) return text;
+  const contexts = (await Promise.all(urls.map(fetchUrlContext))).filter(Boolean);
+  if (!contexts.length) return text;
+  return [
+    text,
+    "",
+    "URL context for intent classification:",
+    contexts.join("\n\n"),
+  ].join("\n");
+}
+
+async function fetchUrlContext(url: string): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        "user-agent": "OmniCatcher/0.1 (+https://tutti.local)",
+        accept: "text/html, text/plain;q=0.9, */*;q=0.5",
+      },
+    });
+  } catch {
+    return urlContextFromUrlOnly(url);
+  }
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok) return urlContextFromUrlOnly(url, contentType);
+  if (!/^text\/html|^text\/plain/i.test(contentType)) {
+    return urlContextFromUrlOnly(url, contentType);
+  }
+  let html = "";
+  try {
+    html = (await response.text()).slice(0, 300_000);
+  } catch {
+    return urlContextFromUrlOnly(url, contentType);
+  }
+  const title = extractTagText(html, "title");
+  const description =
+    extractMeta(html, "description") ||
+    extractMeta(html, "og:description") ||
+    extractMeta(html, "twitter:description");
+  const h1 = extractTagText(html, "h1");
+  const excerpt = htmlToText(html).slice(0, 1800);
+  return compactLines([
+    `URL: ${url}`,
+    `Content-Type: ${contentType}`,
+    title ? `Title: ${title}` : "",
+    h1 && h1 !== title ? `Heading: ${h1}` : "",
+    description ? `Description: ${description}` : "",
+    excerpt ? `Text excerpt: ${excerpt}` : "",
+  ]).join("\n");
+}
+
+function urlContextFromUrlOnly(url: string, contentType = ""): string {
+  return compactLines([
+    `URL: ${url}`,
+    contentType ? `Content-Type: ${contentType}` : "",
+    `URL signal: ${looksLikeDocumentUrl(url) ? "article-or-paper-like" : "site-or-tool-like"}`,
+  ]).join("\n");
+}
+
+function extractMeta(html: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `<meta\\s+[^>]*(?:name|property)=["']${escaped}["'][^>]*content=["']([^"']*)["'][^>]*>`,
+    "i",
+  );
+  const reversePattern = new RegExp(
+    `<meta\\s+[^>]*content=["']([^"']*)["'][^>]*(?:name|property)=["']${escaped}["'][^>]*>`,
+    "i",
+  );
+  const match = html.match(pattern) || html.match(reversePattern);
+  return decodeHtml(match?.[1] || "").trim();
+}
+
+function extractTagText(html: string, tag: string): string {
+  const match = html.match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return decodeHtml(stripTags(match?.[1] || "")).trim();
+}
+
+function htmlToText(html: string): string {
+  return decodeHtml(
+    stripTags(
+      html
+        .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+        .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+        .replace(/<\/(p|div|article|section|h[1-6]|li)>/gi, "\n"),
+    ),
+  )
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n\s+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function stripTags(value: string): string {
+  return value.replace(/<[^>]+>/g, " ");
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function compactLines(lines: string[]): string[] {
+  return lines.map((line) => line.trim()).filter(Boolean);
+}
+
 export function ruleTasks(text: string): string[] {
   const tasks: string[] = [];
   for (const line of (text || "").split("\n")) {
@@ -126,4 +246,9 @@ export function ruleTasks(text: string): string[] {
 
 function looksLikeProse(text: string): boolean {
   return text.split(/\s+/).length > 40 || (text.match(/\n/g)?.length || 0) > 4;
+}
+
+function looksLikeDocumentUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  return /arxiv\.org|doi\.org|pubmed|scholar|paper|papers|publication|article|blog|posts?|essay|research|\.pdf(?:$|[?#/])/.test(lower);
 }

@@ -225,13 +225,16 @@ select:focus {
 }
 
 .sidebar {
+  --sidebar-pad-x: 14px;
+  --sidebar-pad-y: 20px;
+  --sidebar-item-pad-x: 12px;
   width: var(--sidebar-w);
   height: 100vh;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 28px 18px;
+  padding: var(--sidebar-pad-y) var(--sidebar-pad-x);
   border-right: 2px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: transparent;
   overflow-y: auto;
@@ -240,8 +243,7 @@ select:focus {
 
 .sidebar.collapsed {
   width: 64px;
-  padding-left: 8px;
-  padding-right: 8px;
+  --sidebar-pad-x: 9px;
 }
 
 .sidebar-brand {
@@ -249,7 +251,7 @@ select:focus {
   align-items: center;
   width: 100%;
   min-height: 44px;
-  margin: 0 0 22px;
+  margin: 0 0 14px;
   border-radius: var(--radius);
   background: transparent;
 }
@@ -259,8 +261,8 @@ select:focus {
   min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 6px;
+  justify-content: center;
+  padding: 0;
   border: none;
   background: transparent;
   border-radius: 12px;
@@ -279,7 +281,7 @@ select:focus {
 }
 
 .sidebar-logo-wide {
-  width: 132px;
+  width: 100%;
   height: auto;
   display: block;
   min-width: 0;
@@ -292,27 +294,9 @@ select:focus {
   border-radius: 0;
 }
 
-.sidebar-toggle-icon {
-  width: 16px;
-  height: 16px;
-  margin-left: auto;
-  color: var(--muted);
-  transition: transform 180ms ease;
-}
-
-.sidebar.expanded .sidebar-toggle-icon {
-  transform: rotate(180deg);
-}
-
 .sidebar.collapsed .sidebar-brand-toggle {
-  width: 46px;
   min-height: 46px;
   height: 46px;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 0;
 }
 
 .sidebar.collapsed .sidebar-brand-toggle:hover:not(:disabled),
@@ -330,17 +314,13 @@ select:focus {
   border-radius: 0;
 }
 
-.sidebar.collapsed .sidebar-toggle-icon {
-  display: none;
-}
-
 .sidebar-btn {
   min-height: 46px;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 0 12px;
+  padding: 0 var(--sidebar-item-pad-x);
   color: var(--muted);
   background: transparent;
   border-color: transparent;
@@ -356,17 +336,8 @@ select:focus {
 }
 
 .sidebar.collapsed .sidebar-btn {
-  width: 46px;
-  min-height: 46px;
-  height: 46px;
   justify-content: center;
-  align-self: center;
   padding: 0;
-}
-
-.sidebar.collapsed .sidebar-btn.sidebar-primary {
-  min-height: 46px;
-  margin-bottom: 10px;
 }
 
 .sidebar.collapsed .sidebar-btn span {
@@ -385,7 +356,6 @@ select:focus {
 
 .sidebar-btn.sidebar-primary {
   min-height: 50px;
-  margin-bottom: 10px;
   color: var(--muted);
   background: transparent;
   border-color: transparent;
@@ -1771,7 +1741,8 @@ select:focus {
   .sidebar {
     width: 64px;
     height: 100vh;
-    padding: 14px 8px;
+    --sidebar-pad-x: 9px;
+    --sidebar-pad-y: 14px;
   }
 
   .sidebar.expanded {
@@ -1779,8 +1750,8 @@ select:focus {
   }
 
   .sidebar-brand {
-    margin-left: auto;
-    margin-right: auto;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .sidebar-logo-wide {
@@ -1791,16 +1762,8 @@ select:focus {
     display: block;
   }
 
-  .sidebar-toggle-icon {
-    display: none;
-  }
-
   .sidebar-btn {
-    width: 46px;
-    min-height: 46px;
-    height: 46px;
     justify-content: center;
-    align-self: center;
     padding: 0;
   }
 
@@ -1851,6 +1814,10 @@ select:focus {
     overflow-y: hidden;
     border-right: none;
     border-bottom: 2px solid var(--border);
+    --sidebar-pad-x: 12px;
+    --sidebar-pad-y: 0;
+    padding: 0 var(--sidebar-pad-x);
+    gap: 8px;
   }
 
   .sidebar.expanded,
@@ -1860,7 +1827,7 @@ select:focus {
 
   .sidebar-brand {
     flex: 0 0 auto;
-    margin: 0 4px 0 0;
+    margin: 0;
   }
 
   .sidebar-btn {
@@ -1869,7 +1836,6 @@ select:focus {
 
   .sidebar-btn.sidebar-primary {
     flex-basis: 52px;
-    margin-bottom: 0;
   }
 
   .main {

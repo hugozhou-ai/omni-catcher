@@ -33,7 +33,6 @@ export function Sidebar(props: {
           ) : (
             <img src="/omni-catcher-icon.webp" alt="Omni Catcher" className="sidebar-logo-mark" />
           )}
-          <Icon name="chevronRight" className="sidebar-toggle-icon" />
         </button>
       </div>
       {items.map(({ view, label, icon, primary }) => (

@@ -1552,10 +1552,14 @@ select:focus {
   -webkit-line-clamp: 2;
 }
 
+.todo-detail-body {
+  padding: 28px 32px 32px;
+}
+
 .todo-detail-controls {
   display: flex;
   justify-content: flex-end;
-  margin: 0 0 12px;
+  margin: 0 0 18px;
 }
 
 .todo-task-panel {

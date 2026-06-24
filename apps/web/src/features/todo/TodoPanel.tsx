@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Item, PriorityLevel, TodoProgress } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
@@ -266,14 +266,16 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
               ×
             </button>
           </div>
-          <div className="todo-detail-controls">
-            <ProgressSelect
-              label={t("todoProgress")}
-              value={selected.item.todoProgress || "todo"}
-              onChange={(progress) => void updateProgress(selected.item, progress)}
-            />
+          <div className="todo-detail-body">
+            <div className="todo-detail-controls">
+              <ProgressSelect
+                label={t("todoProgress")}
+                value={selected.item.todoProgress || "todo"}
+                onChange={(progress) => void updateProgress(selected.item, progress)}
+              />
+            </div>
+            <TodoTaskList markdown={selected.markdown} onToggle={(index, checked) => void toggleTask(index, checked)} />
           </div>
-          <TodoTaskList markdown={selected.markdown} onToggle={(index, checked) => void toggleTask(index, checked)} />
         </div>
       ) : null}
     </section>
@@ -403,10 +405,27 @@ function ProgressSelect(props: {
   const { label, value, onChange, compact = false } = props;
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const options: TodoProgress[] = ["todo", "doing", "done"];
 
+  useEffect(() => {
+    if (!open) return undefined;
+    function handlePointerDown(event: PointerEvent): void {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className={`progress-select ${compact ? "compact" : ""}`}>
+    <div ref={rootRef} className={`progress-select ${compact ? "compact" : ""}`}>
       <span>{label}</span>
       <button
         type="button"

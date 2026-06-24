@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Item, PriorityLevel, TodoProgress } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { Icon } from "../../components/Icons.js";
+import { Select } from "../../components/Select.js";
 import { showToast } from "../../platform/toast.js";
 
 type SortKey = "created" | "urgency" | "importance";
@@ -137,6 +138,54 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
     }
   }
 
+  const sortOptions = useMemo(
+    () =>
+      (
+        [
+          ["created", "sortCreated"],
+          ["urgency", "sortUrgency"],
+          ["importance", "sortImportance"],
+        ] as const
+      ).map(([value, key]) => ({ value, label: t(key) })),
+    [t],
+  );
+  const priorityFilterOptions = useMemo(
+    () =>
+      ([0, 1, 2, 3] as const).map((value) => ({
+        value,
+        label: value === 0 ? t("filterUrgencyAll") : t(priorityKey(value)),
+      })),
+    [t],
+  );
+  const importanceFilterOptions = useMemo(
+    () =>
+      ([0, 1, 2, 3] as const).map((value) => ({
+        value,
+        label: value === 0 ? t("filterImportanceAll") : t(priorityKey(value)),
+      })),
+    [t],
+  );
+  const progressFilterOptions = useMemo(
+    () =>
+      (
+        [
+          ["", "filterProgressAll"],
+          ["todo", "todoProgressTodo"],
+          ["doing", "todoProgressDoing"],
+          ["done", "todoProgressDone"],
+        ] as const
+      ).map(([value, key]) => ({ value, label: t(key) })),
+    [t],
+  );
+  const progressOptions = useMemo(
+    () =>
+      (["todo", "doing", "done"] as const).map((value) => ({
+        value,
+        label: t(progressKey(value)),
+      })),
+    [t],
+  );
+
   return (
     <section className={embedded ? "collection-panel embedded" : "collection-panel"}>
       <header className="collection-header">
@@ -151,40 +200,25 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortKey)}>
-            <option value="created">{t("sortCreated")}</option>
-            <option value="urgency">{t("sortUrgency")}</option>
-            <option value="importance">{t("sortImportance")}</option>
-          </select>
-          <select
+          <Select inline value={sortBy} options={sortOptions} onChange={setSortBy} />
+          <Select
+            inline
             value={filterUrgency}
-            onChange={(event) => setFilterUrgency(Number(event.target.value) as 0 | PriorityLevel)}
-          >
-            <option value={0}>{t("filterUrgencyAll")}</option>
-            <option value={1}>{t("priorityLow")}</option>
-            <option value={2}>{t("priorityMedium")}</option>
-            <option value={3}>{t("priorityHigh")}</option>
-          </select>
-          <select
+            options={priorityFilterOptions}
+            onChange={setFilterUrgency}
+          />
+          <Select
+            inline
             value={filterImportance}
-            onChange={(event) =>
-              setFilterImportance(Number(event.target.value) as 0 | PriorityLevel)
-            }
-          >
-            <option value={0}>{t("filterImportanceAll")}</option>
-            <option value={1}>{t("priorityLow")}</option>
-            <option value={2}>{t("priorityMedium")}</option>
-            <option value={3}>{t("priorityHigh")}</option>
-          </select>
-          <select
+            options={importanceFilterOptions}
+            onChange={setFilterImportance}
+          />
+          <Select
+            inline
             value={filterProgress}
-            onChange={(event) => setFilterProgress(event.target.value as "" | TodoProgress)}
-          >
-            <option value="">{t("filterProgressAll")}</option>
-            <option value="todo">{t("todoProgressTodo")}</option>
-            <option value="doing">{t("todoProgressDoing")}</option>
-            <option value="done">{t("todoProgressDone")}</option>
-          </select>
+            options={progressFilterOptions}
+            onChange={setFilterProgress}
+          />
           <div className="view-toggle">
             <button
               type="button"
@@ -268,9 +302,10 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
           </div>
           <div className="todo-detail-body">
             <div className="todo-detail-controls">
-              <ProgressSelect
+              <Select
                 label={t("todoProgress")}
                 value={selected.item.todoProgress || "todo"}
+                options={progressOptions}
                 onChange={(progress) => void updateProgress(selected.item, progress)}
               />
             </div>
@@ -295,6 +330,14 @@ function TodoCard(props: {
   const { item, expanded, draggable, onClick, onOpen, onDelete, onToggleExpanded, onProgress } = props;
   const { t } = useTranslation();
   const progress = item.todoProgress || "todo";
+  const progressOptions = useMemo(
+    () =>
+      (["todo", "doing", "done"] as const).map((value) => ({
+        value,
+        label: t(progressKey(value)),
+      })),
+    [t],
+  );
 
   return (
     <article
@@ -341,7 +384,14 @@ function TodoCard(props: {
               {t("importance")}: {t(priorityKey(item.importance ?? 2))}
             </span>
           </div>
-          <ProgressSelect label={t("todoProgress")} value={progress} onChange={onProgress} compact />
+          <Select
+            label={t("todoProgress")}
+            value={progress}
+            options={progressOptions}
+            onChange={onProgress}
+            compact
+            stopPropagation
+          />
           {item.tags?.length ? <div className="item-card-tags">{item.tags.join(" · ")}</div> : null}
         </>
       ) : null}
@@ -393,75 +443,6 @@ function TodoTaskList(props: {
         <p>{t("todoNoTasks")}</p>
       )}
     </section>
-  );
-}
-
-function ProgressSelect(props: {
-  label: string;
-  value: TodoProgress;
-  onChange: (progress: TodoProgress) => void;
-  compact?: boolean;
-}): ReactNode {
-  const { label, value, onChange, compact = false } = props;
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const options: TodoProgress[] = ["todo", "doing", "done"];
-
-  useEffect(() => {
-    if (!open) return undefined;
-    function handlePointerDown(event: PointerEvent): void {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className={`progress-select ${compact ? "compact" : ""}`}>
-      <span>{label}</span>
-      <button
-        type="button"
-        className="progress-select-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((current) => !current);
-        }}
-      >
-        {t(progressKey(value))}
-        <span className="progress-select-chevron" aria-hidden="true" />
-      </button>
-      {open ? (
-        <div className="progress-select-menu" role="listbox">
-          {options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={option === value ? "active" : ""}
-              role="option"
-              aria-selected={option === value}
-              onClick={(event) => {
-                event.stopPropagation();
-                onChange(option);
-                setOpen(false);
-              }}
-            >
-              {option === value ? <span aria-hidden="true">✓</span> : <span aria-hidden="true" />}
-              {t(progressKey(option))}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
   );
 }
 

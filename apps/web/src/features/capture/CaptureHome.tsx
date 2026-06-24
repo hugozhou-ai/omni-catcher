@@ -13,6 +13,7 @@ import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
+import { Select } from "../../components/Select.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -223,17 +224,18 @@ export function CaptureHome(): ReactNode {
             <div className="capture-input-meta">
               {providerHint ? <span className="hint">{providerHint}</span> : null}
               {providers.length ? (
-                <label className="provider-select">
+                <div className="provider-select">
                   <span className="hint">{t("providerLabel")}</span>
-                  <select value={preferred} onChange={(event) => onProviderChange(event.target.value)}>
-                    <option value="">{t("providerDefaultOption")}</option>
-                    {providers.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <Select
+                    inline
+                    value={preferred}
+                    options={[
+                      { value: "", label: t("providerDefaultOption") },
+                      ...providers.map((name) => ({ value: name, label: name })),
+                    ]}
+                    onChange={onProviderChange}
+                  />
+                </div>
               ) : null}
             </div>
             <button

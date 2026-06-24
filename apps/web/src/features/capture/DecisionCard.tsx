@@ -1,10 +1,11 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Capture, Classification, ConfirmResult, Intent, PriorityLevel } from "@omni-catcher/shared";
 import { useService } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { Badge } from "../../components/Badge.js";
+import { Select } from "../../components/Select.js";
 import { intentKey } from "../../i18n/intent.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -343,16 +344,13 @@ function DecisionEditor(props: {
             onChange={(event) => onTitle(event.target.value)}
           />
         </label>
-        <label className="field decision-intent-field">
-          <span>{t("changeIntent")}</span>
-          <select value={intent} onChange={(event) => onIntent(event.target.value as Intent)}>
-            {selectable.map((option) => (
-              <option key={option} value={option}>
-                {t(intentKey(option))}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          className="decision-intent-field"
+          label={t("changeIntent")}
+          value={intent}
+          options={selectable.map((option) => ({ value: option, label: t(intentKey(option)) }))}
+          onChange={onIntent}
+        />
       </div>
       {data.primaryIntent !== intent ? (
         <div className="notice info">
@@ -399,33 +397,33 @@ function DecisionFooter(props: {
   } = props;
   const { t } = useTranslation();
   const showIssue = intent === "todo" && data.todoUpgrade?.agentCompletable;
+  const priorityOptions = useMemo(
+    () =>
+      ([1, 2, 3] as const).map((value) => ({
+        value,
+        label: t(priorityLabelKey(value)),
+      })),
+    [t],
+  );
 
   return (
     <>
       {intent === "todo" ? (
         <div className="priority-row">
-          <label className="priority-field">
-            <span>{t("urgency")}</span>
-            <select
-              value={urgency}
-              onChange={(event) => onUrgency(Number(event.target.value) as PriorityLevel)}
-            >
-              <option value={1}>{t("priorityLow")}</option>
-              <option value={2}>{t("priorityMedium")}</option>
-              <option value={3}>{t("priorityHigh")}</option>
-            </select>
-          </label>
-          <label className="priority-field">
-            <span>{t("importance")}</span>
-            <select
-              value={importance}
-              onChange={(event) => onImportance(Number(event.target.value) as PriorityLevel)}
-            >
-              <option value={1}>{t("priorityLow")}</option>
-              <option value={2}>{t("priorityMedium")}</option>
-              <option value={3}>{t("priorityHigh")}</option>
-            </select>
-          </label>
+          <Select
+            className="priority-field"
+            label={t("urgency")}
+            value={urgency}
+            options={priorityOptions}
+            onChange={onUrgency}
+          />
+          <Select
+            className="priority-field"
+            label={t("importance")}
+            value={importance}
+            options={priorityOptions}
+            onChange={onImportance}
+          />
         </div>
       ) : null}
 
@@ -458,4 +456,10 @@ function DecisionFooter(props: {
       </div>
     </>
   );
+}
+
+function priorityLabelKey(level: PriorityLevel): "priorityLow" | "priorityMedium" | "priorityHigh" {
+  if (level >= 3) return "priorityHigh";
+  if (level <= 1) return "priorityLow";
+  return "priorityMedium";
 }

@@ -44,15 +44,23 @@ export function LibraryPanel(): ReactNode {
   }, [items, query]);
 
   async function openItem(item: Item): Promise<void> {
-    const result = await library.readItem(item.id);
-    setSelected(result);
+    try {
+      const result = await library.readItem(item.id);
+      setSelected(result);
+    } catch (error) {
+      showToast((error as Error).message);
+    }
   }
 
   async function deleteItem(item: Item): Promise<void> {
     if (!window.confirm(t("deleteConfirm"))) return;
-    await library.deleteItem(item.id);
-    if (selected?.item.id === item.id) setSelected(null);
-    showToast(t("deleted"));
+    try {
+      await library.deleteItem(item.id);
+      if (selected?.item.id === item.id) setSelected(null);
+      showToast(t("deleted"));
+    } catch (error) {
+      showToast((error as Error).message);
+    }
   }
 
   return (
@@ -94,7 +102,7 @@ export function LibraryPanel(): ReactNode {
           </label>
 
           {filtered.length === 0 ? (
-            <div className="empty">{t("emptyLibrary")}</div>
+            <div className="empty">{query.trim() ? t("emptySearch") : t("emptyLibrary")}</div>
           ) : (
             <div className="card-grid">
               {filtered.map((item) => (

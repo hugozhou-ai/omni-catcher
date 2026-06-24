@@ -15,6 +15,7 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
   const items = useStore(library.items);
 
   const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
 
   const titleKey = type === "note" ? "tabNote" : "tabBookmark";
@@ -26,6 +27,7 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let list = items.filter((item) => item.type === type);
+    if (tagFilter) list = list.filter((item) => (item.tags || []).includes(tagFilter));
     if (!needle) return list;
     return list.filter((item) =>
       [item.title, item.summary || "", (item.tags || []).join(" ")]
@@ -33,7 +35,20 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
         .toLowerCase()
         .includes(needle),
     );
-  }, [items, type, query]);
+  }, [items, type, query, tagFilter]);
+
+  const tags = useMemo(() => {
+    if (type !== "bookmark") return [];
+    const values = new Set<string>();
+    for (const item of items) {
+      if (item.type !== "bookmark") continue;
+      for (const tag of item.tags || []) {
+        const trimmed = tag.trim();
+        if (trimmed) values.add(trimmed);
+      }
+    }
+    return [...values].sort((a, b) => a.localeCompare(b));
+  }, [items, type]);
 
   async function openItem(item: Item): Promise<void> {
     const result = await library.readItem(item.id);
@@ -60,10 +75,31 @@ export function CollectionPanel(props: { type: Intent; embedded?: boolean }): Re
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
+        {type === "bookmark" && tags.length ? (
+          <div className="tag-filter" role="list" aria-label={t("tagFilterAll")}>
+            <button
+              type="button"
+              className={!tagFilter ? "active" : ""}
+              onClick={() => setTagFilter("")}
+            >
+              {t("tagFilterAll")}
+            </button>
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className={tagFilter === tag ? "active" : ""}
+                onClick={() => setTagFilter(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </header>
 
       {filtered.length === 0 ? (
-        <div className="empty">{t("emptyLibrary")}</div>
+        <div className="empty">{query.trim() || tagFilter ? t("emptySearch") : t("emptyLibrary")}</div>
       ) : (
         <div className="card-grid">
           {filtered.map((item) => (

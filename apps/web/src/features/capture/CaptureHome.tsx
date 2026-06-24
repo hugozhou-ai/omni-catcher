@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import type { Capture } from "@omni-catcher/shared";
+import type { Capture, CaptureProgress } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
@@ -182,7 +182,10 @@ export function CaptureHome(): ReactNode {
       {phase === "processing" ? (
         <div className="capture-processing">
           <Spinner />
-          <p>{t("classifying")}</p>
+          <div>
+            <p>{progressText(activeCapture?.progress, t)}</p>
+            <span>{t("classifying")}</span>
+          </div>
         </div>
       ) : null}
 
@@ -246,4 +249,30 @@ export function CaptureHome(): ReactNode {
       ) : null}
     </div>
   );
+}
+
+function progressText(
+  progress: CaptureProgress | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
+): string {
+  switch (progress) {
+    case "preparing":
+      return t("progressPreparing");
+    case "finding_related":
+      return t("progressFindingRelated");
+    case "preparing_context":
+      return t("progressPreparingContext");
+    case "fetching_pages":
+      return t("progressFetchingPages");
+    case "browser_pages":
+      return t("progressBrowserPages");
+    case "calling_agent":
+      return t("progressCallingAgent");
+    case "finalizing":
+      return t("progressFinalizing");
+    case "fallback":
+      return t("progressFallback");
+    default:
+      return t("classifying");
+  }
 }

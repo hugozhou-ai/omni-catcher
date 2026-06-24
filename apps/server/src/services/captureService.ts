@@ -1,5 +1,14 @@
 import { createServiceIdentifier, type ILogService } from "@omni-catcher/shared/platform";
-import type { Capture, CaptureSource, Classification, ConfirmEdits, ConfirmResult, Intent, Item } from "@omni-catcher/shared";
+import type {
+  Capture,
+  CaptureProgress,
+  CaptureSource,
+  Classification,
+  ConfirmEdits,
+  ConfirmResult,
+  Intent,
+  Item,
+} from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { captureId, nowIso } from "../util.js";
 import type { IStorageService } from "./storageService.js";
@@ -44,6 +53,7 @@ export class CaptureService implements ICaptureService {
       agentSessionId: null,
       agentProvider: null,
       error: null,
+      progress: "preparing",
     };
     await this.storage.writeCapture(capture);
     // Fire-and-forget background classification; UI polls for the result.
@@ -57,8 +67,12 @@ export class CaptureService implements ICaptureService {
     try {
       const settings = await this.storage.readSettings();
       const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
+      await this.updateProgress(id, "finding_related");
       const relatedItems = await this.storage.findRelatedItems(capture.content);
-      const prompt = await this.classification.classifyPrompt(capture.content, relatedItems);
+      await this.updateProgress(id, "preparing_context");
+      const prompt = await this.classification.classifyPrompt(capture.content, relatedItems, (progress) =>
+        this.updateProgress(id, progress),
+      );
       this.log.info(
         `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
           event: "start",
@@ -69,6 +83,7 @@ export class CaptureService implements ICaptureService {
           preferredProvider: preferredProvider || "",
         })}`,
       );
+      await this.updateProgress(id, "calling_agent");
       const outcome = await this.agent.runPrompt(
         prompt,
         "Omni Catcher: classify",
@@ -77,6 +92,7 @@ export class CaptureService implements ICaptureService {
       );
       const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
       if (!parsed.source) parsed.source = "agent";
+      await this.updateProgress(id, "finalizing");
       capture = (await this.storage.readCapture(id)) || capture;
       capture.classification = withDeterministicMergePreview(
         this.classification.normalize(parsed, capture.content, relatedItems),
@@ -85,6 +101,7 @@ export class CaptureService implements ICaptureService {
       capture.agentProvider = outcome.provider;
       capture.status = "classified";
       capture.error = null;
+      delete capture.progress;
       this.log.info(
         `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
           event: "classified",
@@ -104,6 +121,7 @@ export class CaptureService implements ICaptureService {
         })}`,
       );
       capture = (await this.storage.readCapture(id)) || capture;
+      capture.progress = "fallback";
       const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
       capture.classification = withDeterministicMergePreview(
         this.classification.normalize(fallbackRaw, capture.content, await this.storage.findRelatedItems(capture.content)),
@@ -111,6 +129,13 @@ export class CaptureService implements ICaptureService {
       capture.status = "needs_review";
       capture.error = (error as Error).message;
     }
+    await this.storage.writeCapture(capture);
+  }
+
+  private async updateProgress(id: string, progress: CaptureProgress): Promise<void> {
+    const capture = await this.storage.readCapture(id);
+    if (!capture || capture.status !== "classifying") return;
+    capture.progress = progress;
     await this.storage.writeCapture(capture);
   }
 
@@ -139,12 +164,17 @@ export class CaptureService implements ICaptureService {
           ...classification,
           title: raw.title || classification.title,
           summary: raw.summary || "",
+          tags: mergeTags(raw.tags, edits.tags || classification.tags),
           extractedUrls: raw.url ? [raw.url] : [],
           extractedTasks: Array.isArray(raw.tasks) ? raw.tasks : [],
         };
+        const splitEdits: ConfirmEdits = {
+          tags: mergeTags(raw.tags, edits.tags),
+          ...(effective === "todo" ? { urgency: edits.urgency, importance: edits.importance } : {}),
+        };
         const subContent = raw.summary || raw.url || capture.content;
         written.push(
-          await this.storage.writeItem(effective, subClass, subContent, capture, edits, String(index + 1)),
+          await this.storage.writeItem(effective, subClass, subContent, capture, splitEdits, String(index + 1)),
         );
       }
       if (!written.length) {
@@ -222,4 +252,16 @@ function withDeterministicMergePreview(classification: Classification): Classifi
 function normalizeIntent(value: unknown): Intent | "" {
   const v = String(value || "").trim().toLowerCase();
   return v === "note" || v === "bookmark" || v === "todo" || v === "mixed" ? (v as Intent) : "";
+}
+
+function mergeTags(left: unknown, right: unknown): string[] {
+  const result: string[] = [];
+  for (const source of [left, right]) {
+    if (!Array.isArray(source)) continue;
+    for (const value of source) {
+      const tag = String(value || "").trim();
+      if (tag && !result.includes(tag)) result.push(tag);
+    }
+  }
+  return result.slice(0, 5);
 }

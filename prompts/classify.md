@@ -22,7 +22,9 @@ Rules:
 - "note": prose, an article, a paper, a tutorial, a long paste, or a URL whose title/description/excerpt or URL signal indicates knowledge content worth summarizing. Technical/community post URLs such as /post, /posts, /article, /blog, /paper, /research, arxiv, DOI, or PDF should be "note" when page content is unavailable, but actual page content should override this heuristic when it clearly indicates a tool/product/resource.
 - "bookmark": a tool website, product, dataset, reference/resource page, or one or more URLs the user wants to save for later use.
 - "todo": actionable tasks ("buy milk", "finish the report", numbered action lists).
-- "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tasks": [] }.
+- "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tags": [], "tasks": [] }.
+- When the capture contains multiple URLs, inspect every URL in "URL context" and decide per URL. If the URLs form one coherent article/paper/tool roundup, save as one "note" with a summary organized by link. If they are independent tools/resources, classify as "mixed" and create one bookmark item per URL. Do not ignore later URLs.
+- For bookmark items, generate useful topical tags such as product category, use case, technology, or domain. Avoid generic tags like "link" or "website".
 - Respond in the same language as the captured content for title/tags.
 - If the captured content or readable page content is primarily English, "summary" MUST be bilingual with English first and Chinese second, using this exact shape: "English: ...\n中文：...". Keep both sides concise and semantically aligned. Apply the same bilingual rule to each mixed item summary when that sub-item is English.
 - For non-English content, write "summary" in the same language as the captured content unless the user explicitly asks otherwise.

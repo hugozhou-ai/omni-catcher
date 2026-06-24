@@ -4,6 +4,15 @@ export type ClassificationIntent = Intent | "clarify";
 
 export type CaptureStatus = "classifying" | "classified" | "needs_review";
 export type CaptureSource = "paste" | "url" | "cli";
+export type CaptureProgress =
+  | "preparing"
+  | "finding_related"
+  | "preparing_context"
+  | "fetching_pages"
+  | "browser_pages"
+  | "calling_agent"
+  | "finalizing"
+  | "fallback";
 
 export interface TodoUpgrade {
   agentCompletable: boolean;
@@ -34,6 +43,7 @@ export interface MixedItem {
   title?: string;
   summary?: string;
   url?: string;
+  tags?: string[];
   tasks?: string[];
 }
 
@@ -66,6 +76,7 @@ export interface Capture {
   agentSessionId: string | null;
   agentProvider: string | null;
   error: string | null;
+  progress?: CaptureProgress;
 }
 
 export interface Item {

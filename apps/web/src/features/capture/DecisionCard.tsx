@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
-import type { Capture, Classification, Intent, PriorityLevel } from "@omni-catcher/shared";
+import type { Capture, Classification, ConfirmResult, Intent, PriorityLevel } from "@omni-catcher/shared";
 import { useService } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
@@ -37,15 +37,23 @@ export function DecisionCard(props: {
 
   const showIssue = intent === "todo" && data.todoUpgrade?.agentCompletable;
   const mergeTargetId = intent === "note" ? data.mergePreview?.targetItemId : undefined;
+  const titleValue = title.trim();
+  const canSave = Boolean(titleValue) && !busy;
+  const isRuleBased = data.source === "rule" || data.source === "rule-fallback";
+  const splitCount = intent === "mixed" ? data.items.length : 0;
 
   async function confirm(): Promise<void> {
+    if (!titleValue) {
+      showToast(t("titleRequired"));
+      return;
+    }
     setBusy(true);
     try {
-      await captureService.confirm(capture.id, {
+      const result = await captureService.confirm(capture.id, {
         intent,
         writeIssue: showIssue ? writeIssue : false,
         edits: {
-          title: title.trim(),
+          title: titleValue,
           tags: tags
             .split(",")
             .map((s) => s.trim())
@@ -53,7 +61,7 @@ export function DecisionCard(props: {
           ...(intent === "todo" ? { urgency, importance } : {}),
         },
       });
-      showToast(t("saved"));
+      showToast(issueFailed(result) ? t("savedIssueFailed") : t("saved"));
       await library.refresh();
       onDone();
     } catch (error) {
@@ -126,6 +134,46 @@ export function DecisionCard(props: {
               <p>{data.summary}</p>
             </section>
           ) : null}
+          {data.alternatives.length || data.relatedItems?.length || data.extractedUrls.length ? (
+            <section className="detail-section">
+              <h3>{t("decisionReasons")}</h3>
+              <div className="decision-reasons">
+                {data.alternatives.map((alternative) => (
+                  <p key={`${alternative.intent}-${alternative.reason}`}>
+                    <Badge intent={alternative.intent} label={t(intentKey(alternative.intent))} />
+                    <span>{alternative.reason}</span>
+                  </p>
+                ))}
+                {data.relatedItems?.length ? (
+                  <div>
+                    <h4>{t("relatedItems")}</h4>
+                    <ul>
+                      {data.relatedItems.map((item) => (
+                        <li key={item.id}>
+                          <strong>{item.title}</strong>
+                          <span> - {item.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {data.extractedUrls.length ? (
+                  <div>
+                    <h4>{t("sourceUrls")}</h4>
+                    <ul>
+                      {data.extractedUrls.map((url) => (
+                        <li key={url}>
+                          <a href={url} target="_blank" rel="noreferrer">
+                            {url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
           <section className="detail-section">
             <h3>{t("originalContent")}</h3>
             <pre>{capture.content}</pre>
@@ -156,6 +204,7 @@ export function DecisionCard(props: {
                     {item.title ? <h4>{item.title}</h4> : null}
                     {item.summary ? <p>{item.summary}</p> : null}
                     {item.url ? <p className="detail-url">{item.url}</p> : null}
+                    {item.tags?.length ? <p className="detail-tags">{item.tags.join(", ")}</p> : null}
                     {item.tasks?.length ? (
                       <ul>
                         {item.tasks.map((task) => (
@@ -177,6 +226,7 @@ export function DecisionCard(props: {
           writeIssue={writeIssue}
           mergeTargetId={mergeTargetId}
           busy={busy}
+          canSave={canSave}
           onUrgency={setUrgency}
           onImportance={setImportance}
           onWriteIssue={setWriteIssue}
@@ -209,10 +259,25 @@ export function DecisionCard(props: {
         </div>
 
         {capture.status === "needs_review" && (
-          <div className="notice warn">{t("needsReview")}</div>
+          <div className="notice warn">
+            {t("needsReview")}
+            {capture.error ? (
+              <span>
+                {" "}
+                {t("classificationError")} {capture.error}
+              </span>
+            ) : null}
+          </div>
         )}
 
-        <h3 className="decision-preview-title">{title || data.title}</h3>
+        {isRuleBased ? <div className="notice info">{t("ruleBasedDecision")}</div> : null}
+        {mergeTargetId ? <div className="notice info">{t("mergeIntoHint")}</div> : null}
+        {intent === "note" && data.mergePreview && !mergeTargetId ? (
+          <div className="notice info">{t("createCollectionHint")}</div>
+        ) : null}
+        {splitCount ? <div className="notice info">{t("mixedSaveHint")}</div> : null}
+
+        <h3 className="decision-preview-title">{title || data.title || t("titleRequired")}</h3>
         {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
         <p className="decision-original-preview">{capture.content}</p>
       </div>
@@ -238,6 +303,7 @@ export function DecisionCard(props: {
         writeIssue={writeIssue}
         mergeTargetId={mergeTargetId}
         busy={busy}
+        canSave={canSave}
         onUrgency={setUrgency}
         onImportance={setImportance}
         onWriteIssue={setWriteIssue}
@@ -246,6 +312,10 @@ export function DecisionCard(props: {
       />
     </div>
   );
+}
+
+function issueFailed(result: ConfirmResult): boolean {
+  return Boolean(result.issue && !result.issue.created && result.issue.error);
 }
 
 function DecisionEditor(props: {
@@ -266,7 +336,12 @@ function DecisionEditor(props: {
       <div className="decision-title-row">
         <label className="field decision-title-field">
           <span>{t("title")}</span>
-          <input type="text" value={title} onChange={(event) => onTitle(event.target.value)} />
+          <input
+            type="text"
+            value={title}
+            aria-invalid={!title.trim()}
+            onChange={(event) => onTitle(event.target.value)}
+          />
         </label>
         <label className="field decision-intent-field">
           <span>{t("changeIntent")}</span>
@@ -300,6 +375,7 @@ function DecisionFooter(props: {
   writeIssue: boolean;
   mergeTargetId?: string;
   busy: boolean;
+  canSave: boolean;
   onUrgency: (urgency: PriorityLevel) => void;
   onImportance: (importance: PriorityLevel) => void;
   onWriteIssue: (writeIssue: boolean) => void;
@@ -314,6 +390,7 @@ function DecisionFooter(props: {
     writeIssue,
     mergeTargetId,
     busy,
+    canSave,
     onUrgency,
     onImportance,
     onWriteIssue,
@@ -353,22 +430,30 @@ function DecisionFooter(props: {
       ) : null}
 
       {showIssue ? (
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={writeIssue}
-            onChange={(event) => onWriteIssue(event.target.checked)}
-          />
-          {t("writeIssue")}
-        </label>
+        <div className="issue-upgrade">
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={writeIssue}
+              onChange={(event) => onWriteIssue(event.target.checked)}
+            />
+            {t("writeIssue")}
+          </label>
+          {data.todoUpgrade.suggestedIssueTitle ? (
+            <p>
+              {t("issueTitle")}: {data.todoUpgrade.suggestedIssueTitle}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="decision-actions">
         <button type="button" className="danger" disabled={busy} onClick={() => void onReject()}>
           {t("reject")}
         </button>
-        <button type="button" className="primary" disabled={busy} onClick={() => void onConfirm()}>
-          {mergeTargetId ? t("confirmMerge") : t("confirm")}
+        {!canSave ? <span className="action-hint">{t("titleRequired")}</span> : null}
+        <button type="button" className="primary" disabled={!canSave} onClick={() => void onConfirm()}>
+          {busy ? t("saving") : mergeTargetId ? t("confirmMerge") : t("confirm")}
         </button>
       </div>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useStore } from "../platform/react.js";
 import { toastStore } from "../platform/toast.js";
+import { Icon } from "./Icons.js";
 
 export function Toast(): ReactNode {
   const message = useStore(toastStore);
@@ -13,5 +14,12 @@ export function Toast(): ReactNode {
     return () => clearTimeout(timer);
   }, [message]);
 
-  return <div className={`toast ${visible ? "show" : ""}`}>{message?.text ?? ""}</div>;
+  return (
+    <div className={`toast ${visible ? "show" : ""}`} role="status" aria-live="polite">
+      <span className="toast-icon">
+        <Icon name="check" />
+      </span>
+      <span>{message?.text ?? ""}</span>
+    </div>
+  );
 }

@@ -2,14 +2,24 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
 import type { ILogService } from "@omni-catcher/shared/platform";
-import type { Classification, ClassificationIntent, MixedItem, RelatedItem } from "@omni-catcher/shared";
+import type {
+  CaptureProgress,
+  Classification,
+  ClassificationIntent,
+  MixedItem,
+  RelatedItem,
+} from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { extractUrls, firstNonemptyLine } from "../util.js";
 import type { ITuttiCliService } from "./tuttiCliService.js";
 
 export interface IClassificationService {
   rulePreview(content: string, url: string): Classification;
-  classifyPrompt(content: string, relatedItems?: RelatedItem[]): Promise<string>;
+  classifyPrompt(
+    content: string,
+    relatedItems?: RelatedItem[],
+    onProgress?: (progress: CaptureProgress) => Promise<void>,
+  ): Promise<string>;
   parseStrictJson(text: string): unknown;
   normalize(parsed: Record<string, unknown>, content: string, relatedItems?: RelatedItem[]): Classification;
 }
@@ -39,25 +49,36 @@ export class ClassificationService implements IClassificationService {
     else if (text.length > 280 || looksLikeProse(text)) intent = "note";
     else if (urls.length) intent = "bookmark";
     else intent = "note";
-    const title = firstNonemptyLine(text).slice(0, 80) || urls[0] || "Capture";
+    const firstLine = firstNonemptyLine(text);
+    const title =
+      (urls.length === 1 && firstLine === urls[0] ? titleFromUrl(urls[0]) : firstLine).slice(0, 80) ||
+      titleFromUrl(urls[0] || "") ||
+      "Capture";
+    const multiUrlItems = urls.length > 1 ? urls.map((entry) => mixedItemFromUrl(entry)) : [];
+    const multiUrlIntent: ClassificationIntent =
+      multiUrlItems.length && multiUrlItems.some((item) => item.type === "bookmark") ? "mixed" : intent;
     return {
-      primaryIntent: intent,
+      primaryIntent: multiUrlIntent,
       confidence: 0,
       alternatives: [],
-      title,
+      title: multiUrlItems.length ? titleFromUrls(urls) : title,
       summary: text.slice(0, 200),
-      tags: [],
+      tags: multiUrlItems.length ? ["bookmarks"] : [],
       extractedUrls: urls,
       extractedTasks: tasks,
-      items: [],
+      items: multiUrlItems,
       todoUpgrade: { agentCompletable: false, suggestedIssueTitle: "" },
       source: "rule",
     };
   }
 
-  async classifyPrompt(content: string, relatedItems: RelatedItem[] = []): Promise<string> {
+  async classifyPrompt(
+    content: string,
+    relatedItems: RelatedItem[] = [],
+    onProgress?: (progress: CaptureProgress) => Promise<void>,
+  ): Promise<string> {
     const template = await readFile(resolve(this.config.promptsDir, "classify.md"), "utf-8");
-    const enriched = await enrichContentForClassification(content, this.cli, this.log);
+    const enriched = await enrichContentForClassification(content, this.cli, this.log, onProgress);
     return template
       .replace("{{EXISTING_ITEMS}}", formatRelatedItemsForPrompt(relatedItems))
       .replace("{{CONTENT}}", enriched);
@@ -86,15 +107,13 @@ export class ClassificationService implements IClassificationService {
       : extractUrls(content);
     const tasks = Array.isArray(parsed.extractedTasks) ? (parsed.extractedTasks as unknown[]).map(String) : [];
     const tags = Array.isArray(parsed.tags) ? (parsed.tags as unknown[]).map(String) : [];
-    const alternatives = Array.isArray(parsed.alternatives)
-      ? (parsed.alternatives as Classification["alternatives"])
-      : [];
-    const items = Array.isArray(parsed.items) ? (parsed.items as MixedItem[]) : [];
+    const alternatives = normalizeAlternatives(parsed.alternatives);
+    const items = normalizeMixedItems(parsed.items);
     const mergePreview = normalizeMergePreview(parsed.mergePreview, relatedItems);
     const upgrade = (parsed.todoUpgrade as Record<string, unknown>) || {};
     return {
       primaryIntent: intent,
-      confidence: Number(parsed.confidence) || 0,
+      confidence: clampConfidence(parsed.confidence),
       alternatives,
       title: String(parsed.title || firstNonemptyLine(content) || "Capture").slice(0, 120),
       summary: String(parsed.summary || "").trim(),
@@ -111,6 +130,51 @@ export class ClassificationService implements IClassificationService {
       source: String(parsed.source || "agent"),
     };
   }
+}
+
+function normalizeAlternatives(value: unknown): Classification["alternatives"] {
+  if (!Array.isArray(value)) return [];
+  const alternatives: Classification["alternatives"] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const intent = String(raw.intent || "").trim().toLowerCase();
+    if (intent !== "note" && intent !== "bookmark" && intent !== "todo" && intent !== "mixed") continue;
+    alternatives.push({ intent, reason: String(raw.reason || "").trim() });
+  }
+  return alternatives.filter((item) => item.reason).slice(0, 4);
+}
+
+function normalizeMixedItems(value: unknown): MixedItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: MixedItem[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Record<string, unknown>;
+    const type = String(raw.type || "").trim().toLowerCase();
+    if (type !== "note" && type !== "bookmark" && type !== "todo") continue;
+    const tasks = Array.isArray(raw.tasks)
+      ? raw.tasks.map((task) => String(task || "").trim()).filter(Boolean).slice(0, 12)
+      : undefined;
+    const tags = Array.isArray(raw.tags)
+      ? raw.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 5)
+      : undefined;
+    items.push({
+      type,
+      title: String(raw.title || "").trim() || undefined,
+      summary: String(raw.summary || "").trim() || undefined,
+      url: String(raw.url || "").trim() || undefined,
+      tags,
+      tasks,
+    });
+  }
+  return items.slice(0, 12);
+}
+
+function clampConfidence(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
 }
 
 function normalizeMergePreview(value: unknown, relatedItems: RelatedItem[]): Classification["mergePreview"] {
@@ -150,10 +214,10 @@ function formatRelatedItemsForPrompt(relatedItems: RelatedItem[]): string {
     .join("\n\n");
 }
 
-const MAX_URL_CONTEXTS = 2;
+const MAX_BROWSER_URL_CONTEXTS = 3;
 const MAX_FETCHED_TEXT_CHARS = 300_000;
 const MAX_EXCERPT_CHARS = 2_500;
-const MAX_ENRICHED_CONTENT_CHARS = 7_000;
+const MAX_ENRICHED_CONTENT_CHARS = 18_000;
 
 type UrlContext = {
   source: "fetch" | "browser" | "url";
@@ -164,11 +228,17 @@ async function enrichContentForClassification(
   content: string,
   cli: ITuttiCliService,
   log: ILogService,
+  onProgress?: (progress: CaptureProgress) => Promise<void>,
 ): Promise<string> {
   const text = (content || "").trim();
-  const urls = extractUrls(text).slice(0, MAX_URL_CONTEXTS);
+  const urls = extractUrls(text);
   if (!urls.length) return text;
-  const contexts = (await Promise.all(urls.map((url) => readUrlContext(url, cli, log)))).filter(Boolean);
+  await onProgress?.("fetching_pages");
+  const contexts = (
+    await Promise.all(
+      urls.map((url, index) => readUrlContext(url, cli, log, index < MAX_BROWSER_URL_CONTEXTS, onProgress)),
+    )
+  ).filter(Boolean);
   if (!contexts.length) return text;
   for (const context of contexts) {
     log.info(
@@ -182,15 +252,38 @@ async function enrichContentForClassification(
   const enriched = [
     text,
     "",
-    "URL context for intent classification. Prefer fetched/browser page content; use URL signal only when page content is unavailable:",
-    contexts.map((context) => context.text).join("\n\n"),
+    "All extracted URLs:",
+    urls.map((url, index) => `${index + 1}. ${url}`).join("\n"),
+    "",
+    "URL context for intent classification. Analyze every numbered URL. Prefer fetched/browser page content; use URL signal only when page content is unavailable:",
+    formatUrlContexts(contexts),
   ].join("\n");
-  return enriched.slice(0, MAX_ENRICHED_CONTENT_CHARS);
+  return enriched;
 }
 
-async function readUrlContext(url: string, cli: ITuttiCliService, log: ILogService): Promise<UrlContext> {
+function formatUrlContexts(contexts: UrlContext[]): string {
+  const perContextLimit = Math.max(600, Math.floor(MAX_ENRICHED_CONTENT_CHARS / Math.max(contexts.length, 1)));
+  return contexts
+    .map((context, index) => {
+      const text = context.text.length > perContextLimit
+        ? `${context.text.slice(0, perContextLimit)}\n[context truncated]`
+        : context.text;
+      return `URL context ${index + 1} of ${contexts.length}\n${text}`;
+    })
+    .join("\n\n");
+}
+
+async function readUrlContext(
+  url: string,
+  cli: ITuttiCliService,
+  log: ILogService,
+  allowBrowserFallback: boolean,
+  onProgress?: (progress: CaptureProgress) => Promise<void>,
+): Promise<UrlContext> {
   const fetched = await fetchUrlContext(url, log);
   if (hasUsablePageText(fetched.pageText)) return { source: "fetch", text: fetched.context };
+  if (!allowBrowserFallback) return { source: "url", text: urlContextFromUrlOnly(url, fetched.contentType) };
+  await onProgress?.("browser_pages");
   const browser = await browserUrlContext(url, cli, log);
   if (browser && hasUsablePageText(browser.pageText)) return { source: "browser", text: browser.context };
   return { source: "url", text: urlContextFromUrlOnly(url, fetched.contentType) };
@@ -420,10 +513,61 @@ export function ruleTasks(text: string): string[] {
   for (const line of (text || "").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const cleaned = trimmed.replace(/^([-*]|\d+[.)]|\[\s?\])\s+/, "");
-    if (cleaned !== trimmed) tasks.push(cleaned);
+    const cleaned = trimmed
+      .replace(/^[-*]\s+\[\s?\]\s+/, "")
+      .replace(/^\[\s?\]\s+/, "")
+      .replace(/^([-*]|\d+[.)])\s+/, "");
+    const prefixed = trimmed.match(/^(?:todo|to do|task|待办|任务)[:：]\s*(.+)$/i)?.[1]?.trim();
+    const imperative = /^(?:remember to|remind me to|need to|要|需要|记得|提醒我|帮我)\s*(.+)$/i.exec(trimmed)?.[1]?.trim();
+    const task = cleaned !== trimmed ? cleaned : prefixed || imperative || "";
+    if (task && !tasks.includes(task)) tasks.push(task);
   }
   return tasks;
+}
+
+function titleFromUrl(url: string): string {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/$/, "").split("/").filter(Boolean).at(-1) || "";
+    return [host, path ? decodeURIComponent(path).replace(/[-_]+/g, " ") : ""].filter(Boolean).join(" - ");
+  } catch {
+    return url;
+  }
+}
+
+function titleFromUrls(urls: string[]): string {
+  if (urls.length <= 1) return titleFromUrl(urls[0] || "") || "Bookmarks";
+  return `Captured links (${urls.length})`;
+}
+
+function mixedItemFromUrl(url: string): MixedItem {
+  const title = titleFromUrl(url) || url;
+  const type: MixedItem["type"] = looksLikeDocumentUrl(url) ? "note" : "bookmark";
+  return {
+    type,
+    title,
+    summary: url,
+    url,
+    tags: tagsFromUrl(url, type),
+    tasks: [],
+  };
+}
+
+function tagsFromUrl(url: string, type: MixedItem["type"]): string[] {
+  const tags: string[] = [];
+  if (type === "note") tags.push("article");
+  try {
+    const parsed = new URL(url);
+    const hostParts = parsed.hostname.replace(/^www\./, "").split(".");
+    const domain = hostParts.length > 1 ? hostParts.at(-2) || "" : hostParts[0] || "";
+    if (domain && !tags.includes(domain)) tags.push(domain);
+  } catch {
+    /* keep generic tags */
+  }
+  if (!tags.length) tags.push(type === "bookmark" ? "tool" : "note");
+  return tags.slice(0, 5);
 }
 
 function looksLikeProse(text: string): boolean {

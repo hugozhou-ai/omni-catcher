@@ -342,8 +342,8 @@ export class StorageService implements IStorageService {
     const relative = `${folder}/${filename}`;
     const confirmedAt = nowIso();
     const summary = (effective.summary || "").trim().slice(0, 900);
-    const urgency = intent === "todo" ? (edits.urgency ?? 2) : undefined;
-    const importance = intent === "todo" ? (edits.importance ?? 2) : undefined;
+    const urgency = intent === "todo" ? (parsePriorityLevel(edits.urgency) ?? 2) : undefined;
+    const importance = intent === "todo" ? (parsePriorityLevel(edits.importance) ?? 2) : undefined;
     const meta: Record<string, unknown> = {
       id: itemId,
       type: intent,

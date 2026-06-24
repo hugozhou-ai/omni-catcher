@@ -82,6 +82,16 @@ export interface Messages {
   sortImportance: string;
   filterUrgencyAll: string;
   filterImportanceAll: string;
+  filterProgressAll: string;
+  todoProgress: string;
+  todoProgressTodo: string;
+  todoProgressDoing: string;
+  todoProgressDone: string;
+  todoTasks: string;
+  todoNoTasks: string;
+  expand: string;
+  collapse: string;
+  details: string;
   viewList: string;
   viewMatrix: string;
   matrixQ1: string;

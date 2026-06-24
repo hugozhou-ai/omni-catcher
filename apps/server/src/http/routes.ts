@@ -5,6 +5,7 @@ import {
   cliTable,
   type CliInvokeEnvelope,
   type ConfirmEdits,
+  type TodoProgress,
 } from "@omni-catcher/shared";
 import { IAppConfig } from "../config.js";
 import { IStorageService } from "../services/storageService.js";
@@ -102,13 +103,21 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
 
   app.patch<{ Params: { id: string } }>("/api/items/:id", async (request, reply) => {
     const body = (request.body || {}) as Record<string, unknown>;
-    const update: { urgency?: 1 | 2 | 3; importance?: 1 | 2 | 3 } = {};
+    const update: { urgency?: 1 | 2 | 3; importance?: 1 | 2 | 3; todoProgress?: TodoProgress } = {};
     const urgency = Number(body.urgency);
     const importance = Number(body.importance);
+    const todoProgress = String(body.todoProgress || "").trim();
     if (urgency === 1 || urgency === 2 || urgency === 3) update.urgency = urgency;
     if (importance === 1 || importance === 2 || importance === 3) update.importance = importance;
-    if (update.urgency === undefined && update.importance === undefined) {
-      return reply.code(400).send({ error: "urgency or importance required" });
+    if (todoProgress === "todo" || todoProgress === "doing" || todoProgress === "done") {
+      update.todoProgress = todoProgress;
+    }
+    if (
+      update.urgency === undefined &&
+      update.importance === undefined &&
+      update.todoProgress === undefined
+    ) {
+      return reply.code(400).send({ error: "urgency, importance or todoProgress required" });
     }
     try {
       return { item: await storage.updateItemMeta(request.params.id, update) };
@@ -116,6 +125,20 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
       return reply.code(404).send({ error: (error as Error).message });
     }
   });
+
+  app.patch<{ Params: { id: string }; Body: { taskIndex?: number; completed?: boolean } }>(
+    "/api/items/:id/todo-task",
+    async (request, reply) => {
+      const body = (request.body || {}) as Record<string, unknown>;
+      const taskIndex = Number(body.taskIndex);
+      const completed = Boolean(body.completed);
+      try {
+        return await storage.updateTodoTask(request.params.id, taskIndex, completed);
+      } catch (error) {
+        return reply.code(400).send({ error: (error as Error).message });
+      }
+    },
+  );
 
   app.delete<{ Params: { id: string } }>("/api/items/:id", async (request, reply) => {
     try {

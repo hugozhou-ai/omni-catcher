@@ -8,6 +8,7 @@ export interface ILibraryService {
   refresh(type?: string): Promise<void>;
   readItem(id: string): Promise<{ item: Item; markdown: string }>;
   updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
+  updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }>;
   deleteItem(id: string): Promise<Item>;
 }
 
@@ -33,6 +34,13 @@ export class LibraryService implements ILibraryService {
     const current = this.items.get();
     this.items.set(current.map((item) => (item.id === id ? data.item : item)));
     return data.item;
+  }
+
+  async updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }> {
+    return this.api.patch<{ item: Item; markdown: string }>(`/api/items/${id}/todo-task`, {
+      taskIndex,
+      completed,
+    });
   }
 
   async deleteItem(id: string): Promise<Item> {

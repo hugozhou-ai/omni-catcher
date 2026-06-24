@@ -11,6 +11,7 @@ import type {
   ItemMetaUpdate,
   PriorityLevel,
   RelatedItem,
+  TodoProgress,
 } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { Mutex, extractUrls, nowIso, slugify, todayStamp } from "../util.js";
@@ -37,6 +38,7 @@ export interface IStorageService {
   searchItems(query: string): Promise<Item[]>;
   findRelatedItems(content: string, limit?: number): Promise<RelatedItem[]>;
   updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
+  updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }>;
   mergeIntoItem(id: string, classification: Classification, content: string, capture: Capture, edits: ConfirmEdits): Promise<Item>;
   deleteItem(id: string): Promise<Item>;
   writeItem(
@@ -243,6 +245,7 @@ export class StorageService implements IStorageService {
     const meta = parseFrontmatter(markdown);
     if (update.urgency !== undefined) meta.urgency = update.urgency;
     if (update.importance !== undefined) meta.importance = update.importance;
+    if (update.todoProgress !== undefined) meta.todoProgress = update.todoProgress;
     const bodyStart = markdown.indexOf("\n---\n", 4);
     const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
     const nextMarkdown = buildFrontmatter(meta) + "\n" + body;
@@ -250,6 +253,7 @@ export class StorageService implements IStorageService {
       ...existing,
       urgency: parsePriorityLevel(meta.urgency) ?? existing.urgency,
       importance: parsePriorityLevel(meta.importance) ?? existing.importance,
+      todoProgress: parseTodoProgress(meta.todoProgress) ?? existing.todoProgress,
     };
     await this.mutex.run(async () => {
       await writeFile(filePath, nextMarkdown, "utf-8");
@@ -262,6 +266,33 @@ export class StorageService implements IStorageService {
       );
     });
     return nextItem;
+  }
+
+  async updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }> {
+    const existing = await this.findItem(id);
+    if (!existing) throw new Error(`item ${id} was not found`);
+    if (existing.type !== "todo") throw new Error(`item ${id} is not a todo`);
+    const filePath = join(this.dataDir, existing.path);
+    const markdown = await readFile(filePath, "utf-8");
+    const updatedMarkdown = replaceTodoCheckbox(markdown, taskIndex, completed);
+    const meta = parseFrontmatter(updatedMarkdown);
+    const todoProgress = inferTodoProgress(updatedMarkdown);
+    meta.todoProgress = todoProgress;
+    const bodyStart = updatedMarkdown.indexOf("\n---\n", 4);
+    const body = bodyStart >= 0 ? updatedMarkdown.slice(bodyStart + 5) : updatedMarkdown;
+    const nextMarkdown = buildFrontmatter(meta) + "\n" + body;
+    const nextItem: Item = { ...existing, todoProgress };
+    await this.mutex.run(async () => {
+      await writeFile(filePath, nextMarkdown, "utf-8");
+      const items = await this.readIndex();
+      const nextIndex = items.map((item) => (item.id === id ? nextItem : item));
+      await writeFile(
+        this.indexPath,
+        nextIndex.map((item) => JSON.stringify(item)).join("\n") + (nextIndex.length ? "\n" : ""),
+        "utf-8",
+      );
+    });
+    return { item: nextItem, markdown: nextMarkdown };
   }
 
   async mergeIntoItem(
@@ -358,6 +389,7 @@ export class StorageService implements IStorageService {
     };
     if (urgency !== undefined) meta.urgency = urgency;
     if (importance !== undefined) meta.importance = importance;
+    if (intent === "todo") meta.todoProgress = "todo";
     if (capture.agentSessionId) meta.agentSessionId = capture.agentSessionId;
     if (capture.agentProvider) meta.agentProvider = capture.agentProvider;
     const document = buildFrontmatter(meta) + "\n\n" + buildBody(intent, effective, content);
@@ -371,6 +403,7 @@ export class StorageService implements IStorageService {
       tags: effective.tags,
       urgency,
       importance,
+      todoProgress: intent === "todo" ? "todo" : undefined,
       createdAt: String(meta.createdAt),
       confirmedAt,
     };
@@ -421,6 +454,11 @@ function parsePriorityLevel(value: unknown): PriorityLevel | undefined {
   return undefined;
 }
 
+function parseTodoProgress(value: unknown): TodoProgress | undefined {
+  const text = String(value || "").trim();
+  return text === "todo" || text === "doing" || text === "done" ? text : undefined;
+}
+
 function itemFromFrontmatter(meta: Record<string, unknown>, type: Intent, path: string): Item {
   const id = String(meta.id || path.replace(/\.md$/, ""));
   return {
@@ -433,6 +471,7 @@ function itemFromFrontmatter(meta: Record<string, unknown>, type: Intent, path: 
     tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
     urgency: parsePriorityLevel(meta.urgency),
     importance: parsePriorityLevel(meta.importance),
+    todoProgress: parseTodoProgress(meta.todoProgress),
     createdAt: String(meta.createdAt || ""),
     confirmedAt: String(meta.confirmedAt || ""),
   };
@@ -595,4 +634,32 @@ function todoBody(classification: Classification, content: string): string {
       ? ruleTasks(content)
       : [content.trim()];
   return tasks.filter(Boolean).map((task) => `- [ ] ${task}`).join("\n") + "\n";
+}
+
+function replaceTodoCheckbox(markdown: string, taskIndex: number, completed: boolean): string {
+  if (!Number.isInteger(taskIndex) || taskIndex < 0) throw new Error("valid taskIndex is required");
+  let seen = -1;
+  let changed = false;
+  const lines = markdown.split("\n").map((line) => {
+    const match = line.match(/^(\s*[-*]\s+\[)( |x|X)(\]\s+.*)$/);
+    if (!match) return line;
+    seen += 1;
+    if (seen !== taskIndex) return line;
+    changed = true;
+    return `${match[1]}${completed ? "x" : " "}${match[3]}`;
+  });
+  if (!changed) throw new Error(`todo task ${taskIndex} was not found`);
+  return lines.join("\n");
+}
+
+function inferTodoProgress(markdown: string): TodoProgress {
+  const states = markdown
+    .split("\n")
+    .map((line) => line.match(/^\s*[-*]\s+\[( |x|X)\]\s+/)?.[1])
+    .filter((value): value is string => Boolean(value));
+  if (!states.length) return "todo";
+  const completed = states.filter((value) => value.toLowerCase() === "x").length;
+  if (completed === states.length) return "done";
+  if (completed > 0) return "doing";
+  return "todo";
 }

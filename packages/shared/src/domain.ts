@@ -89,6 +89,7 @@ export interface Item {
   tags: string[];
   urgency?: PriorityLevel;
   importance?: PriorityLevel;
+  todoProgress?: TodoProgress;
   createdAt: string;
   confirmedAt: string;
 }
@@ -114,6 +115,7 @@ export interface WorkspaceContext {
 
 /** 1 = low, 2 = medium, 3 = high */
 export type PriorityLevel = 1 | 2 | 3;
+export type TodoProgress = "todo" | "doing" | "done";
 
 export interface ConfirmEdits {
   title?: string;
@@ -125,6 +127,7 @@ export interface ConfirmEdits {
 export interface ItemMetaUpdate {
   urgency?: PriorityLevel;
   importance?: PriorityLevel;
+  todoProgress?: TodoProgress;
 }
 
 export interface ConfirmResult {

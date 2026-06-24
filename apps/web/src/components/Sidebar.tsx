@@ -10,7 +10,7 @@ export function Sidebar(props: {
 }): ReactNode {
   const { active, onNavigate } = props;
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const items: { view: AppView; label: string; icon: IconName; primary?: boolean }[] = [
     { view: "capture", label: t("navHome"), icon: "capture", primary: true },

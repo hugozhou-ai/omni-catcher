@@ -244,6 +244,8 @@ select:focus {
 .sidebar.collapsed {
   width: 64px;
   --sidebar-pad-x: 9px;
+  --sidebar-item-size: 46px;
+  align-items: flex-start;
 }
 
 .sidebar-brand {
@@ -295,8 +297,10 @@ select:focus {
 }
 
 .sidebar.collapsed .sidebar-brand-toggle {
-  min-height: 46px;
-  height: 46px;
+  width: var(--sidebar-item-size);
+  height: var(--sidebar-item-size);
+  min-height: var(--sidebar-item-size);
+  flex-shrink: 0;
 }
 
 .sidebar.collapsed .sidebar-brand-toggle:hover:not(:disabled),
@@ -336,8 +340,18 @@ select:focus {
 }
 
 .sidebar.collapsed .sidebar-btn {
+  width: var(--sidebar-item-size);
+  height: var(--sidebar-item-size);
+  min-height: var(--sidebar-item-size);
+  max-height: var(--sidebar-item-size);
   justify-content: center;
   padding: 0;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-btn.sidebar-primary {
+  min-height: var(--sidebar-item-size);
+  max-height: var(--sidebar-item-size);
 }
 
 .sidebar.collapsed .sidebar-btn span {
@@ -1743,6 +1757,8 @@ select:focus {
     height: 100vh;
     --sidebar-pad-x: 9px;
     --sidebar-pad-y: 14px;
+    --sidebar-item-size: 46px;
+    align-items: flex-start;
   }
 
   .sidebar.expanded {
@@ -1762,13 +1778,20 @@ select:focus {
     display: block;
   }
 
+  .sidebar-brand-toggle,
   .sidebar-btn {
+    width: var(--sidebar-item-size);
+    height: var(--sidebar-item-size);
+    min-height: var(--sidebar-item-size);
+    max-height: var(--sidebar-item-size);
     justify-content: center;
     padding: 0;
+    flex-shrink: 0;
   }
 
   .sidebar-btn.sidebar-primary {
-    min-height: 46px;
+    min-height: var(--sidebar-item-size);
+    max-height: var(--sidebar-item-size);
   }
 
   .sidebar-btn span {

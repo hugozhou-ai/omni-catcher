@@ -412,12 +412,13 @@ select:focus {
 
 .sidebar-category {
   width: 100%;
-  min-height: 34px;
+  height: 40px;
+  min-height: 40px;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) 12px;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px 7px 10px;
+  padding: 0 8px 0 10px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -452,16 +453,27 @@ select:focus {
 .sidebar-category-label {
   position: relative;
   min-width: 0;
+  min-height: 21px;
+  line-height: 16px;
 }
 
-.sidebar-category.active .sidebar-category-label::after {
+.sidebar-category-label::after {
   content: "";
   display: block;
   width: 18px;
   height: 2px;
   margin-top: 3px;
   border-radius: 999px;
+  background: transparent;
+}
+
+.sidebar-category.active .sidebar-category-label::after {
   background: var(--accent);
+}
+
+.sidebar-category .icon,
+.sidebar-category-chevron {
+  align-self: center;
 }
 
 .sidebar-category .icon {

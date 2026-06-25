@@ -504,14 +504,7 @@ select:focus {
 .sidebar-item:hover:not(:disabled),
 .sidebar-item:active:not(:disabled),
 .sidebar-item:focus,
-.sidebar-item:focus-visible {
-  color: var(--text);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  transform: none;
-}
-
+.sidebar-item:focus-visible,
 .sidebar-item.active,
 .sidebar-item.active:hover:not(:disabled) {
   color: var(--muted);
@@ -521,6 +514,7 @@ select:focus {
   transform: none;
 }
 
+.sidebar-item:hover:not(:disabled) .sidebar-item-title,
 .sidebar-item.active .sidebar-item-title {
   font-weight: 600;
 }

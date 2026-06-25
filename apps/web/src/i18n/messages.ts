@@ -55,6 +55,7 @@ export interface Messages {
   emptyPending: string;
   emptyLibrary: string;
   emptySearch: string;
+  librarySelectItem: string;
   saved: string;
   deleted: string;
   deleteItem: string;

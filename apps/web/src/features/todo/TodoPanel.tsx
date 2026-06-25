@@ -41,8 +41,11 @@ function quadrantOf(item: Item): Quadrant {
   return "q4";
 }
 
-export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
-  const { embedded = false } = props;
+export function TodoPanel(props: {
+  selectedItemId?: string | null;
+  onSelectItem?: (itemId: string | null) => void;
+}): ReactNode {
+  const { selectedItemId = null, onSelectItem } = props;
   const { t } = useTranslation();
   const library = useService(ILibraryService);
   const items = useStore(library.items);
@@ -54,11 +57,40 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
   const [filterProgress, setFilterProgress] = useState<"" | TodoProgress>("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
+  const [loadingSelected, setLoadingSelected] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     void library.refresh("todo");
   }, [library]);
+
+  useEffect(() => {
+    if (!selectedItemId) {
+      setSelected(null);
+      setLoadingSelected(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSelected(true);
+    void library
+      .readItem(selectedItemId)
+      .then((result) => {
+        if (cancelled) return;
+        setSelected(result);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        showToast((error as Error).message);
+        setSelected(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingSelected(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [library, selectedItemId]);
 
   const filtered = useMemo(() => {
     let list = items.filter((item) => item.type === "todo");
@@ -91,14 +123,16 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
   }, [filtered]);
 
   async function openItem(item: Item): Promise<void> {
-    const result = await library.readItem(item.id);
-    setSelected(result);
+    onSelectItem?.(item.id);
   }
 
   async function deleteItem(item: Item): Promise<void> {
     if (!window.confirm(t("deleteConfirm"))) return;
     await library.deleteItem(item.id);
-    if (selected?.item.id === item.id) setSelected(null);
+    if (selected?.item.id === item.id || selectedItemId === item.id) {
+      onSelectItem?.(null);
+      setSelected(null);
+    }
     showToast(t("deleted"));
   }
 
@@ -186,10 +220,47 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
     [t],
   );
 
+  if (selectedItemId) {
+    return (
+      <section className="library-content">
+        {loadingSelected && !selected ? (
+          <div className="library-detail-loading" aria-busy="true" />
+        ) : selected ? (
+          <>
+            <header className="library-detail-header">
+              <div className="library-detail-header-main">
+                <h2>{selected.item.title || selected.item.id}</h2>
+              </div>
+              <div className="library-detail-header-actions">
+                <time>{(selected.item.createdAt || "").slice(0, 10)}</time>
+                <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+                  {t("deleteItem")}
+                </button>
+              </div>
+            </header>
+            <div className="todo-detail-body">
+              <div className="todo-detail-controls">
+                <Select
+                  label={t("todoProgress")}
+                  value={selected.item.todoProgress || "todo"}
+                  options={progressOptions}
+                  onChange={(progress) => void updateProgress(selected.item, progress)}
+                />
+              </div>
+              <TodoTaskList
+                markdown={selected.markdown}
+                onToggle={(index, checked) => void toggleTask(index, checked)}
+              />
+            </div>
+          </>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
-    <section className={embedded ? "collection-panel embedded" : "collection-panel"}>
+    <section className="library-content">
       <header className="collection-header">
-        {embedded ? null : <h2>{t("tabTodo")}</h2>}
         <div className="collection-toolbar">
           <label className="search-box grow">
             <Icon name="search" />
@@ -290,29 +361,6 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
         </div>
       )}
 
-      {selected ? (
-        <div className="viewer">
-          <div className="viewer-actions">
-            <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
-              {t("deleteItem")}
-            </button>
-            <button type="button" className="viewer-close" onClick={() => setSelected(null)}>
-              ×
-            </button>
-          </div>
-          <div className="todo-detail-body">
-            <div className="todo-detail-controls">
-              <Select
-                label={t("todoProgress")}
-                value={selected.item.todoProgress || "todo"}
-                options={progressOptions}
-                onChange={(progress) => void updateProgress(selected.item, progress)}
-              />
-            </div>
-            <TodoTaskList markdown={selected.markdown} onToggle={(index, checked) => void toggleTask(index, checked)} />
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

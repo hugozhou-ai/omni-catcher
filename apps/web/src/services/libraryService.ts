@@ -20,9 +20,15 @@ export class LibraryService implements ILibraryService {
   constructor(private readonly api: IApiService) {}
 
   async refresh(type?: string): Promise<void> {
-    const query = type && type !== "all" ? `?type=${encodeURIComponent(type)}` : "";
+    const query = type ? `?type=${encodeURIComponent(type)}` : "";
     const data = await this.api.get<{ items: Item[] }>(`/api/items${query}`);
-    this.items.set(data.items || []);
+    const incoming = data.items || [];
+    if (!type) {
+      this.items.set(incoming);
+      return;
+    }
+    const kept = this.items.get().filter((item) => item.type !== type);
+    this.items.set([...kept, ...incoming]);
   }
 
   readItem(id: string): Promise<{ item: Item; markdown: string }> {

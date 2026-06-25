@@ -70,6 +70,7 @@ export const en: Messages = {
   navHome: "Capture",
   navLibrary: "Library",
   emptySearch: "No saved items match this search.",
+  librarySelectItem: "Select an item from the sidebar.",
   collapseSidebar: "Collapse sidebar",
   expandSidebar: "Expand sidebar",
   urgency: "Urgency",

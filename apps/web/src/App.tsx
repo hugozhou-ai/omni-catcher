@@ -3,14 +3,23 @@ import { Toast } from "./components/Toast.js";
 import { Sidebar, type AppView } from "./components/Sidebar.js";
 import { CaptureHome } from "./features/capture/CaptureHome.js";
 import { LibraryPanel } from "./features/library/LibraryPanel.js";
+import {
+  DEFAULT_LIBRARY_SELECTION,
+  type LibraryCategory,
+  type LibrarySelection,
+} from "./features/library/libraryNavigation.js";
 import { useService } from "./platform/react.js";
 import { ILocalizationService } from "./services/localizationService.js";
 import { ICaptureService } from "./services/captureService.js";
+import { ILibraryService } from "./services/libraryService.js";
 
 export function App(): ReactNode {
   const localization = useService(ILocalizationService);
   const captureService = useService(ICaptureService);
+  const library = useService(ILibraryService);
   const [view, setView] = useState<AppView>("capture");
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [librarySelection, setLibrarySelection] = useState<LibrarySelection>(DEFAULT_LIBRARY_SELECTION);
 
   useEffect(() => {
     void localization.init();
@@ -19,22 +28,45 @@ export function App(): ReactNode {
     });
   }, [localization, captureService]);
 
+  useEffect(() => {
+    if (view !== "library") return;
+    void library.refresh();
+  }, [library, view]);
+
+  function navigate(viewId: AppView): void {
+    setView(viewId);
+    if (viewId === "library") setSidebarExpanded(true);
+  }
+
+  function navigateLibrary(category: LibraryCategory, itemId: string | null = null): void {
+    setView("library");
+    setSidebarExpanded(true);
+    setLibrarySelection({ category, itemId });
+  }
+
   return (
     <div className="shell">
-      <Sidebar active={view} onNavigate={setView} />
-      <main className={`main ${view === "capture" ? "main-home" : ""}`}>{renderMain(view)}</main>
+      <Sidebar
+        active={view}
+        expanded={sidebarExpanded}
+        librarySelection={librarySelection}
+        onNavigate={navigate}
+        onExpandedChange={setSidebarExpanded}
+        onLibraryNavigate={navigateLibrary}
+      />
+      <main className={`main ${view === "capture" ? "main-home" : "main-library"}`}>
+        {view === "capture" ? (
+          <CaptureHome />
+        ) : (
+          <LibraryPanel
+            selection={librarySelection}
+            onSelectItem={(itemId) =>
+              setLibrarySelection((current) => ({ ...current, itemId }))
+            }
+          />
+        )}
+      </main>
       <Toast />
     </div>
   );
-}
-
-function renderMain(view: AppView): ReactNode {
-  switch (view) {
-    case "capture":
-      return <CaptureHome />;
-    case "library":
-      return <LibraryPanel />;
-    default:
-      return <CaptureHome />;
-  }
 }

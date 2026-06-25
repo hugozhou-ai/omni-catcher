@@ -70,6 +70,7 @@ export const zhCN: Messages = {
   navHome: "捕获",
   navLibrary: "资料库",
   emptySearch: "没有匹配的已保存内容。",
+  librarySelectItem: "从左侧侧边栏选择一篇内容。",
   collapseSidebar: "收起侧边栏",
   expandSidebar: "展开侧边栏",
   urgency: "紧急程度",

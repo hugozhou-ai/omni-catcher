@@ -131,7 +131,7 @@ export function Sidebar(props: {
                   onClick={() => toggleCategory(category)}
                 >
                   <Icon name={CATEGORY_ICONS[category]} />
-                  <span>{t(CATEGORY_LABELS[category])}</span>
+                  <span className="sidebar-category-label">{t(CATEGORY_LABELS[category])}</span>
                   <Icon name="chevronRight" className={`sidebar-category-chevron ${categoryOpen ? "open" : ""}`} />
                 </button>
                 {categoryOpen ? (

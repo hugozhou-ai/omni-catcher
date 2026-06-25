@@ -84,9 +84,9 @@ export function Sidebar(props: {
           onClick={() => onExpandedChange(!expanded)}
         >
           {expanded ? (
-            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="sidebar-logo-wide" />
+            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="sidebar-logo-wide" draggable={false} />
           ) : (
-            <img src="/omni-catcher-icon.webp" alt="Omni Catcher" className="sidebar-logo-mark" />
+            <img src="/omni-catcher-icon.webp" alt="Omni Catcher" className="sidebar-logo-mark" draggable={false} />
           )}
         </button>
       </div>
@@ -118,8 +118,7 @@ export function Sidebar(props: {
       {active === "library" && expanded ? (
         <div className="sidebar-library" aria-label={t("navLibrary")}>
           {LIBRARY_CATEGORIES.map((category) => {
-            const categoryActive =
-              librarySelection.category === category && librarySelection.itemId === null;
+            const categoryActive = librarySelection.category === category;
             const categoryOpen = expandedCategories[category];
             const categoryItems = itemsByCategory[category];
             return (

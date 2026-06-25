@@ -15,6 +15,9 @@ export function MarkdownViewer(props: { markdown: string }): ReactNode {
               </a>
             );
           },
+          img(props) {
+            return <img {...props} draggable={false} />;
+          },
         }}
       >
         {stripFrontmatter(props.markdown)}

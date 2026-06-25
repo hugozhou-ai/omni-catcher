@@ -171,7 +171,7 @@ export function CaptureHome(): ReactNode {
       <div className="capture-hero">
         <div className="capture-brand">
           <div className="capture-logo-frame">
-            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" />
+            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" draggable={false} />
           </div>
         </div>
       </div>

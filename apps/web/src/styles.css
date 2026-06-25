@@ -27,8 +27,7 @@
   --bookmark: var(--accent);
   --todo: var(--accent);
   --mixed: var(--accent);
-  --radius: 16px;
-  --radius-sm: 12px;
+  --radius: 8px;
   --sidebar-w: 240px;
   --shadow-sm: 0 12px 24px rgb(24 30 42 / 8%);
   --shadow: 0 20px 56px rgb(24 30 42 / 12%);
@@ -95,10 +94,10 @@ textarea {
 }
 
 button {
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  border-radius: 12px;
+  border-radius: var(--radius);
   cursor: pointer;
   font-size: 14px;
   font-weight: 400;
@@ -107,7 +106,7 @@ button {
 
 button:hover:not(:disabled) {
   border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 button:active:not(:disabled) {
@@ -152,8 +151,8 @@ input[type="text"],
 input[type="search"],
 select,
 textarea {
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -241,7 +240,7 @@ select:focus {
   flex-direction: column;
   gap: 8px;
   padding: var(--sidebar-pad-y) var(--sidebar-pad-x);
-  border-right: 2px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-right: 1.5px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: transparent;
   overflow: hidden;
   transition: width 180ms ease, padding 180ms ease;
@@ -273,7 +272,7 @@ select:focus {
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 12px;
+  border-radius: var(--radius);
   box-shadow: none;
 }
 
@@ -461,9 +460,9 @@ select:focus {
   content: "";
   display: block;
   width: 18px;
-  height: 2px;
+  height: 1.5px;
   margin-top: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: transparent;
 }
 
@@ -573,7 +572,7 @@ select:focus {
 .library-content .library-detail-header,
 .library-content .library-detail-body,
 .library-content .todo-detail-body {
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
@@ -628,7 +627,7 @@ select:focus {
 .capture-sheet,
 .decision-card {
   background: var(--surface);
-  border: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
@@ -659,7 +658,7 @@ select:focus {
   flex: 1;
   resize: vertical;
   border: none;
-  border-radius: 14px 14px 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   background: var(--surface);
   color: var(--text);
   padding: 20px 24px;
@@ -701,8 +700,8 @@ select:focus {
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border-top: 2px solid var(--border);
-  border-radius: 0 0 14px 14px;
+  border-top: 1.5px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--surface);
 }
 
@@ -732,10 +731,10 @@ select:focus {
   max-height: 130px;
   overflow: auto;
   padding: 14px 16px;
-  border: 2px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border: 1.5px solid var(--border);
+  border-left: 1.5px solid var(--accent);
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: var(--radius);
   color: var(--muted);
   font-size: 14px;
   line-height: 22px;
@@ -748,8 +747,8 @@ select:focus {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   color: var(--muted);
@@ -781,7 +780,7 @@ select:focus {
   overflow: hidden;
   padding: 0 0 20px;
   border: none;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   border-radius: 0;
   background: transparent;
   color: inherit;
@@ -839,8 +838,8 @@ select:focus {
 .notice.warn {
   margin-bottom: 12px;
   padding: 10px 12px;
-  border: 2px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-  border-radius: var(--radius-sm);
+  border: 1.5px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: var(--radius);
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   font-size: 12px;
@@ -848,8 +847,8 @@ select:focus {
 
 .notice.info {
   padding: 8px 10px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--accent-soft);
   color: var(--muted);
   font-size: 12px;
@@ -905,8 +904,8 @@ select:focus {
 .decision-summary {
   margin: 0;
   padding: 12px 12px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface-muted);
   color: var(--muted);
   font-size: 14px;
@@ -943,8 +942,8 @@ select:focus {
 }
 
 .detail-section {
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface-muted);
   padding: 14px;
 }
@@ -976,8 +975,8 @@ select:focus {
 }
 
 .merge-preview pre {
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   padding: 10px;
 }
 
@@ -1053,8 +1052,8 @@ select:focus {
 }
 
 .markdown-viewer code {
-  border: 2px solid var(--border);
-  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   padding: 2px 6px;
   background: var(--surface-raised);
 }
@@ -1062,8 +1061,8 @@ select:focus {
 .markdown-viewer pre {
   max-width: 100%;
   overflow: auto;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   padding: 12px;
   background: var(--surface-raised);
 }
@@ -1075,7 +1074,7 @@ select:focus {
 }
 
 .markdown-viewer blockquote {
-  border-left: 4px solid var(--border-strong);
+  border-left: 1.5px solid var(--border-strong);
   padding-left: 12px;
   color: var(--muted);
 }
@@ -1087,7 +1086,7 @@ select:focus {
 
 .markdown-viewer th,
 .markdown-viewer td {
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border);
   padding: 6px 8px;
   text-align: left;
 }
@@ -1098,8 +1097,8 @@ select:focus {
 }
 
 .mixed-item {
-  border: 2px solid var(--border);
-  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
   padding: 12px;
 }
@@ -1242,19 +1241,18 @@ select:focus {
 }
 
 .library-tabs {
-  --tab-radius: 999px;
   display: inline-flex;
   gap: 4px;
   padding: 6px;
-  border: 2px solid var(--border);
-  border-radius: var(--tab-radius);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface-muted);
 }
 
 .library-tabs button {
   min-height: 40px;
   padding: 8px 18px;
-  border-radius: calc(var(--tab-radius) - 6px);
+  border-radius: var(--radius);
   border-color: transparent;
   background: transparent;
   color: var(--muted);
@@ -1324,7 +1322,7 @@ select:focus {
 .tag-filter button {
   min-height: 30px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   color: var(--muted);
   font-size: 12px;
 }
@@ -1341,8 +1339,8 @@ select:focus {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--muted);
 }
@@ -1376,8 +1374,8 @@ select:focus {
   display: inline-flex;
   padding: 6px;
   gap: 6px;
-  border: 2px solid var(--border);
-  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
 }
 
@@ -1411,9 +1409,9 @@ select:focus {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  border: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-top: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-top: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -1512,8 +1510,8 @@ select:focus {
   align-items: center;
   min-height: 24px;
   padding: 2px 8px;
-  border: 2px solid var(--border);
-  border-radius: 1000px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   color: var(--muted);
   background: var(--surface-muted);
   font-size: 12px;
@@ -1524,8 +1522,8 @@ select:focus {
   align-items: center;
   min-height: 24px;
   padding: 2px 8px;
-  border: 2px solid var(--border);
-  border-radius: 1000px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   color: var(--muted);
   background: var(--surface-muted);
   font-size: 12px;
@@ -1577,7 +1575,7 @@ select:focus {
   gap: 10px;
   padding: 7px 12px;
   border-color: var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   color: var(--text);
@@ -1593,8 +1591,8 @@ select:focus {
 .app-select-chevron {
   width: 8px;
   height: 8px;
-  border-right: 2px solid var(--muted);
-  border-bottom: 2px solid var(--muted);
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
   transform: rotate(45deg) translateY(-2px);
   flex-shrink: 0;
 }
@@ -1610,8 +1608,8 @@ select:focus {
   display: grid;
   gap: 4px;
   padding: 8px;
-  border: 2px solid var(--border);
-  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -1625,7 +1623,7 @@ select:focus {
   gap: 6px;
   padding: 6px 10px;
   border-color: transparent;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   text-align: left;
@@ -1680,9 +1678,9 @@ select:focus {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  border: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-top: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-top: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
@@ -1880,7 +1878,7 @@ select:focus {
   flex: 1;
   min-height: 0;
   display: flex;
-  border: 2px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--surface);
@@ -1892,7 +1890,7 @@ select:focus {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 2px solid var(--border);
+  border-right: 1.5px solid var(--border);
   background: var(--surface-muted);
 }
 
@@ -1901,7 +1899,7 @@ select:focus {
   flex-direction: column;
   gap: 10px;
   padding: 14px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
 }
 
 .library-detail-back {
@@ -1948,8 +1946,8 @@ select:focus {
   align-items: flex-start;
   gap: 2px;
   padding: 10px 12px;
-  border: 2px solid transparent;
-  border-radius: 10px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius);
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -2014,7 +2012,7 @@ select:focus {
   justify-content: space-between;
   gap: 16px;
   padding: 20px 24px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -2071,8 +2069,8 @@ select:focus {
 .viewer {
   position: relative;
   margin-top: 20px;
-  border: 2px solid var(--border);
-  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
   box-shadow: var(--shadow);
@@ -2096,7 +2094,7 @@ select:focus {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   background: var(--surface);
 }
 
@@ -2120,8 +2118,8 @@ select:focus {
   align-items: center;
   min-height: 24px;
   padding: 4px 10px;
-  border: 2px solid var(--border-strong);
-  border-radius: 1000px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius);
   color: var(--muted);
   background: var(--surface);
   font-size: 12px;
@@ -2153,7 +2151,7 @@ select:focus {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--border-strong);
+  border: 1.5px solid var(--border-strong);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 800ms linear infinite;
@@ -2163,8 +2161,8 @@ select:focus {
   display: grid;
   place-items: center;
   min-height: 220px;
-  border: 2px dashed var(--border-strong);
-  border-radius: 12px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
   color: var(--muted);
   background: var(--surface);
 }
@@ -2180,8 +2178,8 @@ select:focus {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border: 2px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 92%, var(--accent-soft));
   color: var(--text);
   box-shadow: var(--shadow);
@@ -2202,7 +2200,7 @@ select:focus {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: var(--accent);
   color: var(--accent-text);
 }
@@ -2326,7 +2324,7 @@ select:focus {
     overflow-x: auto;
     overflow-y: hidden;
     border-right: none;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 1.5px solid var(--border);
     --sidebar-pad-x: 12px;
     --sidebar-pad-y: 0;
     padding: 0 var(--sidebar-pad-x);

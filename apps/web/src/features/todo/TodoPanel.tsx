@@ -247,6 +247,7 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
           {filtered.map((item) => (
             <TodoCard
               key={item.id}
+              variant="list"
               item={item}
               expanded
               onProgress={(progress) => void updateProgress(item, progress)}
@@ -273,15 +274,14 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
                 {byQuadrant[q].map((item) => (
                   <TodoCard
                     key={item.id}
+                    variant="matrix"
                     item={item}
                     draggable
                     expanded={Boolean(expanded[item.id])}
                     onToggleExpanded={() =>
                       setExpanded((current) => ({ ...current, [item.id]: !current[item.id] }))
                     }
-                    onProgress={(progress) => void updateProgress(item, progress)}
                     onOpen={() => void openItem(item)}
-                    onDelete={() => void deleteItem(item)}
                   />
                 ))}
               </div>
@@ -320,14 +320,25 @@ export function TodoPanel(props: { embedded?: boolean } = {}): ReactNode {
 function TodoCard(props: {
   item: Item;
   expanded: boolean;
+  variant?: "list" | "matrix";
   draggable?: boolean;
   onClick?: () => void;
   onOpen?: () => void;
   onDelete?: () => void;
   onToggleExpanded?: () => void;
-  onProgress: (progress: TodoProgress) => void;
+  onProgress?: (progress: TodoProgress) => void;
 }): ReactNode {
-  const { item, expanded, draggable, onClick, onOpen, onDelete, onToggleExpanded, onProgress } = props;
+  const {
+    item,
+    expanded,
+    variant = "list",
+    draggable,
+    onClick,
+    onOpen,
+    onDelete,
+    onToggleExpanded,
+    onProgress,
+  } = props;
   const { t } = useTranslation();
   const progress = item.todoProgress || "todo";
   const progressOptions = useMemo(
@@ -338,6 +349,37 @@ function TodoCard(props: {
       })),
     [t],
   );
+
+  if (variant === "matrix") {
+    return (
+      <article
+        className={`item-card todo-card matrix-todo-card ${expanded ? "expanded" : "compact"}`}
+        draggable={draggable}
+        onClick={onToggleExpanded}
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/plain", item.id);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+      >
+        <div className="matrix-card-main">
+          <h3 className="item-card-title">{item.title || item.id}</h3>
+          <span className={`progress-chip progress-${progress}`}>{t(progressKey(progress))}</span>
+        </div>
+        {expanded && onOpen ? (
+          <button
+            type="button"
+            className="matrix-card-details-link"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+          >
+            {t("details")}
+          </button>
+        ) : null}
+      </article>
+    );
+  }
 
   return (
     <article
@@ -388,26 +430,12 @@ function TodoCard(props: {
             label={t("todoProgress")}
             value={progress}
             options={progressOptions}
-            onChange={onProgress}
+            onChange={(progress) => onProgress?.(progress)}
             compact
             stopPropagation
           />
           {item.tags?.length ? <div className="item-card-tags">{item.tags.join(" · ")}</div> : null}
         </>
-      ) : null}
-      {onToggleExpanded || onOpen ? (
-        <div className="matrix-card-actions">
-          {onToggleExpanded ? (
-            <button type="button" onClick={onToggleExpanded}>
-              {expanded ? t("collapse") : t("expand")}
-            </button>
-          ) : null}
-          {onOpen ? (
-            <button type="button" onClick={onOpen}>
-              {t("details")}
-            </button>
-          ) : null}
-        </div>
       ) : null}
     </article>
   );

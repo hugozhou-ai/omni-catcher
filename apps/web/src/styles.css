@@ -1499,6 +1499,62 @@ select:focus {
   padding: 10px;
 }
 
+.matrix-todo-card {
+  cursor: pointer;
+  gap: 8px;
+}
+
+.matrix-todo-card.compact {
+  min-height: 0;
+}
+
+.matrix-todo-card.expanded {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.matrix-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.matrix-todo-card .item-card-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.matrix-todo-card .progress-chip {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.matrix-card-details-link {
+  margin-top: auto;
+  padding: 4px 0 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  align-self: flex-start;
+}
+
+.matrix-card-details-link:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
 .todo-card.compact {
   gap: 8px;
 }
@@ -1512,7 +1568,7 @@ select:focus {
   line-height: 20px;
 }
 
-.todo-card.expanded {
+.todo-card.expanded:not(.matrix-todo-card) {
   min-height: 140px;
 }
 
@@ -1534,20 +1590,6 @@ select:focus {
 .matrix-q4 {
   grid-column: 1;
   grid-row: 2;
-}
-
-.matrix-card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.matrix-card-actions button {
-  min-height: 30px;
-  padding: 4px 10px;
-  border-radius: 10px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .matrix-items .item-card-summary {

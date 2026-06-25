@@ -19,6 +19,9 @@ export const IAgentService = createServiceIdentifier<IAgentService>("agentServic
 
 const SUPPORTED = new Set(["codex", "claude-code", "gemini"]);
 const DEFAULT_PROVIDER = "codex";
+const DEFAULT_MODELS: Record<string, string> = {
+  codex: "gpt-5.5",
+};
 
 export function normalizeProvider(value: unknown): string {
   const v = String(value || "").trim().toLowerCase();
@@ -80,7 +83,8 @@ export class AgentService implements IAgentService {
 
   async runPrompt(prompt: string, title: string, timeoutMs: number, preferred?: string): Promise<AgentRunResult> {
     let provider = await this.resolveProvider(preferred);
-    const model = await this.resolveModel(provider);
+    const model = (await this.resolveModel(provider)) || DEFAULT_MODELS[provider] || "";
+    if (!model) throw new Error(`no model available for provider ${provider}`);
     const args = [
       "agent",
       "start",
@@ -97,7 +101,7 @@ export class AgentService implements IAgentService {
       "--cwd",
       process.env.TUTTI_APP_DATA_DIR || process.cwd(),
     ];
-    if (model) args.push("--model", model);
+    args.push("--model", model);
 
     const start = await this.cli.run(args, 60_000);
     const startSession = (start.session as Record<string, unknown>) || {};
@@ -138,16 +142,38 @@ export class AgentService implements IAgentService {
     const messages = ((result.messages as unknown[]) || []).filter(
       (m): m is Record<string, unknown> => Boolean(m) && typeof m === "object",
     );
-    // The turn is finished only when the newest message is a completed assistant
-    // reply; while it is still streaming the latest message is in-progress.
     const latest = messages.find((m) => Number(m.version || 0) === latestVersion);
     if (!latest) return null;
-    const role = String(latest.role || "").trim().toLowerCase();
-    const status = String(latest.status || "").trim().toLowerCase();
-    if (role !== "assistant" && role !== "agent") return null;
-    if (status !== "completed") return null;
-    return messageText(latest);
+
+    const latestRole = String(latest.role || "").trim().toLowerCase();
+    const latestStatus = String(latest.status || "").trim().toLowerCase();
+    const latestIsCompletedAssistant =
+      (latestRole === "assistant" || latestRole === "agent") && latestStatus === "completed";
+
+    // Codex may emit completed bootstrap/tool notices before the final JSON reply.
+    // Keep polling until the newest completed assistant message looks like JSON.
+    const completedAssistant = messages
+      .filter((message) => {
+        const role = String(message.role || "").trim().toLowerCase();
+        const status = String(message.status || "").trim().toLowerCase();
+        return (role === "assistant" || role === "agent") && status === "completed";
+      })
+      .sort((left, right) => Number(right.version || 0) - Number(left.version || 0));
+
+    for (const message of completedAssistant) {
+      const text = messageText(message);
+      if (text && looksLikeStructuredJsonOutput(text)) return text;
+    }
+
+    if (latestIsCompletedAssistant) return null;
+    return null;
   }
+}
+
+function looksLikeStructuredJsonOutput(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return true;
+  return /^```(?:json)?\s*[\[{]/m.test(trimmed);
 }
 
 function messageText(message: Record<string, unknown>): string | null {

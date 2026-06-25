@@ -1604,6 +1604,219 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.library-panel:has(.detail-mode) {
+  width: 100%;
+  max-width: none;
+  height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+.library-panel:has(.detail-mode) .library-header {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  min-height: auto;
+}
+
+.collection-panel.detail-mode {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.library-detail-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.library-detail-list {
+  width: min(300px, 34vw);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.library-detail-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 2px solid var(--border);
+}
+
+.library-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.library-detail-back:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
+  border: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.library-detail-back .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.library-detail-search {
+  width: 100%;
+}
+
+.item-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.item-list-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.item-list-row:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: none;
+  transform: none;
+}
+
+.item-list-row.active {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--shadow-sm);
+}
+
+.item-list-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.item-list-summary {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.item-list-date {
+  font-size: 11px;
+  color: var(--quiet);
+}
+
+.item-list-empty {
+  padding: 16px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.library-detail-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.library-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.library-detail-header-main {
+  min-width: 0;
+}
+
+.library-detail-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.library-detail-tags {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.library-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.library-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+}
+
+.library-detail-loading {
+  flex: 1;
+  background: linear-gradient(90deg, var(--surface-muted) 25%, var(--surface) 50%, var(--surface-muted) 75%);
+  background-size: 200% 100%;
+  animation: library-detail-shimmer 1.2s infinite;
+}
+
+@keyframes library-detail-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .viewer {
   position: relative;
   margin-top: 20px;
@@ -1836,6 +2049,14 @@ select:focus {
   .decision-title-row,
   .eisenhower {
     grid-template-columns: 2fr;
+  }
+
+  .library-panel:has(.detail-mode) {
+    height: calc(100vh - 108px);
+  }
+
+  .library-detail-list {
+    width: min(240px, 38vw);
   }
 }
 

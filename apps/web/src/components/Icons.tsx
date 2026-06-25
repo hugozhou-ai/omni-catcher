@@ -4,6 +4,7 @@ export type IconName =
   | "bookmark"
   | "capture"
   | "check"
+  | "chevronLeft"
   | "chevronRight"
   | "document"
   | "grid"
@@ -49,6 +50,8 @@ function pathFor(name: IconName): ReactNode {
           <path d="M6 4h12v16H6V4Z" />
         </>
       );
+    case "chevronLeft":
+      return <path d="M14 6l-6 6 6 6" />;
     case "chevronRight":
       return <path d="M10 6l6 6-6 6" />;
     case "document":

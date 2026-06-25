@@ -26,6 +26,7 @@ export function LibraryPanel(): ReactNode {
   const [type, setType] = useState<LibraryType>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
+  const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (type === "all") void library.refresh();
@@ -44,6 +45,12 @@ export function LibraryPanel(): ReactNode {
   }, [items, query]);
 
   async function openItem(item: Item): Promise<void> {
+    if (item.type === "note") {
+      setType("note");
+      setPendingNoteId(item.id);
+      setSelected(null);
+      return;
+    }
     try {
       const result = await library.readItem(item.id);
       setSelected(result);
@@ -81,6 +88,7 @@ export function LibraryPanel(): ReactNode {
               onClick={() => {
                 setType(filter.type);
                 setSelected(null);
+                setPendingNoteId(null);
               }}
             >
               {t(filter.key)}
@@ -135,7 +143,12 @@ export function LibraryPanel(): ReactNode {
       ) : type === "todo" ? (
         <TodoPanel embedded />
       ) : (
-        <CollectionPanel type={type} embedded />
+        <CollectionPanel
+          type={type}
+          embedded
+          initialSelectedId={type === "note" ? pendingNoteId : null}
+          onInitialSelectedConsumed={() => setPendingNoteId(null)}
+        />
       )}
     </section>
   );

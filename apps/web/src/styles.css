@@ -492,6 +492,8 @@ select:focus {
 }
 
 .capture-input-bar {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1451,6 +1453,11 @@ select:focus {
 
 .provider-select .app-select.inline {
   min-width: 140px;
+}
+
+.provider-select .app-select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .item-card-tags {

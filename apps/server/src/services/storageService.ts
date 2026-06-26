@@ -15,6 +15,7 @@ import type {
   TodoProgress,
 } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
+import { migrateDataDirIfNeeded } from "../dataMigration.js";
 import { Mutex, extractUrls, nowIso, slugify, todayStamp } from "../util.js";
 import { ruleTasks } from "./classificationService.js";
 
@@ -59,12 +60,14 @@ export const IStorageService = createServiceIdentifier<IStorageService>("storage
 
 export class StorageService implements IStorageService {
   private readonly mutex = new Mutex();
+  private readonly config: AppConfig;
   readonly dataDir: string;
   private readonly inboxDir: string;
   private readonly indexPath: string;
   private readonly settingsPath: string;
 
   constructor(config: AppConfig) {
+    this.config = config;
     this.dataDir = config.dataDir;
     this.inboxDir = join(this.dataDir, "inbox");
     this.indexPath = join(this.dataDir, "index.jsonl");
@@ -72,6 +75,11 @@ export class StorageService implements IStorageService {
   }
 
   async init(): Promise<void> {
+    migrateDataDirIfNeeded({
+      appId: this.config.appId,
+      workspaceId: this.config.workspaceId,
+      dataDir: this.dataDir,
+    });
     await mkdir(this.inboxDir, { recursive: true });
     for (const folder of new Set(Object.values(INTENT_DIRS))) {
       await mkdir(join(this.dataDir, folder), { recursive: true });

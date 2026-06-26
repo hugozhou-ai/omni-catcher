@@ -34,6 +34,9 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
   - `notes/`, `bookmarks/`, `todos/` — confirmed Markdown items with YAML frontmatter.
   - `index.jsonl` — list/search index; source of truth is the Markdown files (rebuildable via `POST /api/rebuild-index`).
   - `settings.json` — preferred agent provider.
+- On startup, when the injected data dir is empty, `StorageService.init()` migrates from
+  legacy `~/.tutti/apps/workspaces/<ws>/omni-catcher/data`, other installation copies, or
+  `~/.tutti/apps/installations/omni-catcher/.data-backup` if present.
 - `StorageService` serializes all index/file writes through an async `Mutex` (`apps/server/src/util.ts`).
 - Classification reads related notes/bookmarks from `index.jsonl` and their Markdown bodies before
   calling the Agent. Confirming a note can append to an existing Markdown item when

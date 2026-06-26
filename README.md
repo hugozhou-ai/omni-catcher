@@ -192,9 +192,15 @@ notes, and bookmarks.
 > **Reinstalling: always `--bump`.** The daemon keys installed packages by version and
 > will not overwrite an existing version with new contents, so every redeploy needs a new
 > `tutti.app.json` version. `--bump` increments the patch version automatically.
+>
+> **Data survives upgrades.** `install-tutti-app.mjs` skips uninstall by default, keeps a
+> stable backup under `~/.tutti/apps/installations/omni-catcher/.data-backup`, restores
+> into the live installation data dir, and verifies `/api/items` after launch. The server
+> also migrates from legacy `workspaces/.../data` on startup when the current data dir is
+> empty. Use `--clean-install` only when a normal upgrade fails.
 
 Useful flags: `--workspace <id>` to choose a workspace, `--no-package` to reinstall the
-current `build/tutti-app/package` without rebuilding.
+current `build/tutti-app/package` without rebuilding, `--clean-install` to uninstall first.
 
 You can also install via the Tutti desktop App Center by importing a zip of
 `build/tutti-app/package` (it must contain `tutti.app.json` at the archive root and an

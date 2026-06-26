@@ -5,6 +5,7 @@ import { createServiceIdentifier } from "@omni-catcher/shared/platform";
 export interface AppConfig {
   host: string;
   port: number;
+  appId: string;
   packageDir: string;
   dataDir: string;
   logDir: string;
@@ -30,6 +31,7 @@ export function loadConfig(): AppConfig {
   return {
     host: process.env.TUTTI_APP_HOST || "127.0.0.1",
     port: Number(process.env.TUTTI_APP_PORT || 3001),
+    appId: process.env.TUTTI_APP_ID || "omni-catcher",
     packageDir,
     dataDir,
     logDir: process.env.TUTTI_APP_LOG_DIR ? resolve(process.env.TUTTI_APP_LOG_DIR) : resolve(dataDir, "logs"),

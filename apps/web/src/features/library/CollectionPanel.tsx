@@ -6,7 +6,9 @@ import { ILibraryService } from "../../services/libraryService.js";
 import { ItemCard } from "../../components/ItemCard.js";
 import { Icon } from "../../components/Icons.js";
 import { MarkdownViewer } from "../../components/MarkdownViewer.js";
+import { MarkdownEditor } from "../../components/MarkdownEditor.js";
 import { showToast } from "../../platform/toast.js";
+import { stripFrontmatter } from "../../util/markdown.js";
 
 export function CollectionPanel(props: {
   type: Exclude<Intent, "mixed" | "todo">;
@@ -22,12 +24,17 @@ export function CollectionPanel(props: {
   const [tagFilter, setTagFilter] = useState("");
   const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftBody, setDraftBody] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void library.refresh(type);
   }, [library, type]);
 
   useEffect(() => {
+    setEditing(false);
+    setDraftBody("");
     if (!selectedItemId) {
       setSelected(null);
       setLoading(false);
@@ -92,6 +99,33 @@ export function CollectionPanel(props: {
     }
   }
 
+  function startEditing(): void {
+    if (!selected) return;
+    setDraftBody(stripFrontmatter(selected.markdown));
+    setEditing(true);
+  }
+
+  function cancelEditing(): void {
+    setEditing(false);
+    setDraftBody("");
+  }
+
+  async function saveEditing(): Promise<void> {
+    if (!selected || saving) return;
+    setSaving(true);
+    try {
+      const result = await library.updateItemContent(selected.item.id, { body: draftBody });
+      setSelected(result);
+      setEditing(false);
+      setDraftBody("");
+      showToast(t("saved"));
+    } catch (error) {
+      showToast((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (selectedItemId) {
     return (
       <section className="library-content">
@@ -108,13 +142,31 @@ export function CollectionPanel(props: {
               </div>
               <div className="library-detail-header-actions">
                 <time>{(selected.item.createdAt || "").slice(0, 10)}</time>
-                <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+                {editing ? (
+                  <>
+                    <button type="button" className="viewer-action" disabled={saving} onClick={cancelEditing}>
+                      {t("cancelEdit")}
+                    </button>
+                    <button type="button" className="viewer-action primary" disabled={saving} onClick={() => void saveEditing()}>
+                      {saving ? t("saving") : t("saveEdit")}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="viewer-action" onClick={startEditing}>
+                    {t("editItem")}
+                  </button>
+                )}
+                <button type="button" className="viewer-delete" disabled={editing || saving} onClick={() => void deleteItem(selected.item)}>
                   {t("deleteItem")}
                 </button>
               </div>
             </header>
-            <div className="library-detail-body">
-              <MarkdownViewer markdown={selected.markdown} />
+            <div className={`library-detail-body ${editing ? "library-detail-body-editing" : ""}`}>
+              {editing ? (
+                <MarkdownEditor value={draftBody} onChange={setDraftBody} disabled={saving} />
+              ) : (
+                <MarkdownViewer markdown={selected.markdown} />
+              )}
             </div>
           </>
         ) : null}

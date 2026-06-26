@@ -144,6 +144,28 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     },
   );
 
+  app.patch<{ Params: { id: string }; Body: { body?: string; title?: string; tags?: string[] } }>(
+    "/api/items/:id/content",
+    async (request, reply) => {
+      const body = (request.body || {}) as Record<string, unknown>;
+      if (body.body === undefined) {
+        return reply.code(400).send({ error: "body required" });
+      }
+      const update: { body: string; title?: string; tags?: string[] } = {
+        body: String(body.body),
+      };
+      if (body.title !== undefined) update.title = String(body.title);
+      if (Array.isArray(body.tags)) update.tags = body.tags.map((tag) => String(tag));
+      try {
+        return await storage.updateItemContent(request.params.id, update);
+      } catch (error) {
+        const message = (error as Error).message;
+        if (message.includes("not editable")) return reply.code(400).send({ error: message });
+        return reply.code(404).send({ error: message });
+      }
+    },
+  );
+
   app.delete<{ Params: { id: string } }>("/api/items/:id", async (request, reply) => {
     try {
       return { item: await storage.deleteItem(request.params.id), deleted: true };

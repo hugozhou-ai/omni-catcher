@@ -102,6 +102,11 @@ export interface Messages {
   matrixQ2: string;
   matrixQ3: string;
   matrixQ4: string;
+  editItem: string;
+  saveEdit: string;
+  cancelEdit: string;
+  editMode: string;
+  previewMode: string;
 }
 
 export function normalizeLocale(value: string | null | undefined): Locale {

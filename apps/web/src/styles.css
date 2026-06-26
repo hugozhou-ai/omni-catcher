@@ -2131,7 +2131,8 @@ select:focus {
 }
 
 .viewer-close,
-.viewer-delete {
+.viewer-delete,
+.viewer-action {
   width: 30px;
   height: 30px;
   padding: 0;
@@ -2139,10 +2140,86 @@ select:focus {
   background: var(--surface-raised);
 }
 
-.viewer-delete {
+.viewer-delete,
+.viewer-action {
   width: auto;
   padding: 0 10px;
+}
+
+.viewer-action.primary {
+  color: var(--accent-text);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.viewer-action.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.viewer-delete {
   color: var(--danger);
+}
+
+.markdown-editor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.markdown-editor-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.markdown-editor-toolbar button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.markdown-editor-toolbar button.active {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.markdown-editor-shell .w-md-editor {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.markdown-editor-shell .w-md-editor-text-pre,
+.markdown-editor-shell .w-md-editor-text-input,
+.markdown-editor-shell .w-md-editor-text {
+  font-family: "Lexend Variable", "Lexend", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.library-detail-body-editing {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.library-detail-body-editing .markdown-editor-shell {
+  flex: 1;
+  min-height: 0;
+}
+
+.library-detail-body-editing .w-md-editor {
+  flex: 1;
+  min-height: 320px;
 }
 
 .badge {

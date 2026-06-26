@@ -69,7 +69,7 @@ calls, never exposes.
 - `GET /api/context`, `GET /api/agent-providers`, `GET|POST /api/settings`.
 - `POST /api/capture` `{content, url?, source?}`; `GET /api/captures`, `GET /api/captures/:id`.
 - `POST /api/captures/:id/confirm` `{intent?, edits?, writeIssue?}`, `POST /api/captures/:id/cancel`, `POST /api/captures/:id/reject`.
-- `GET /api/items[?type=]`, `GET /api/items/:id`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.
+- `GET /api/items[?type=]`, `GET /api/items/:id`, `PATCH /api/items/:id` (todo meta), `PATCH /api/items/:id/content` `{body, title?, tags?}` (note/bookmark body), `PATCH /api/items/:id/todo-task`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.
 - `POST /tutti/cli/:command` — CLI handlers (receive the `tutti.app.cli.invoke.v1` envelope; params in `input`).
 - `POST /tutti/references/list` + `POST /tutti/references/search` — `@omni-catcher` file references. Each response is `{items, nextCursor}` where every item is a tagged wrapper `{type:"reference", reference:{kind:"file", location:{type:"app-data-relative", path}}}` (a bare file reference is silently dropped by the daemon).
 

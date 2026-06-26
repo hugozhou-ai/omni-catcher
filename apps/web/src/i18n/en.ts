@@ -102,4 +102,9 @@ export const en: Messages = {
   matrixQ2: "Important · Not urgent",
   matrixQ3: "Not important · Urgent",
   matrixQ4: "Not important · Not urgent",
+  editItem: "Edit",
+  saveEdit: "Save",
+  cancelEdit: "Cancel",
+  editMode: "Edit",
+  previewMode: "Preview",
 };

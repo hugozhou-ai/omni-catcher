@@ -102,4 +102,9 @@ export const zhCN: Messages = {
   matrixQ2: "重要不紧急",
   matrixQ3: "不重要但紧急",
   matrixQ4: "不重要不紧急",
+  editItem: "编辑",
+  saveEdit: "保存",
+  cancelEdit: "取消",
+  editMode: "编辑",
+  previewMode: "预览",
 };

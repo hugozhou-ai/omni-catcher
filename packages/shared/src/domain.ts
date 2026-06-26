@@ -132,6 +132,12 @@ export interface ItemMetaUpdate {
   todoProgress?: TodoProgress;
 }
 
+export interface ItemContentUpdate {
+  body: string;
+  title?: string;
+  tags?: string[];
+}
+
 export interface ConfirmResult {
   items: Item[];
   issue: IssueResult | null;

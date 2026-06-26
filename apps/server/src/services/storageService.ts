@@ -8,6 +8,7 @@ import type {
   ConfirmEdits,
   Intent,
   Item,
+  ItemContentUpdate,
   ItemMetaUpdate,
   PriorityLevel,
   RelatedItem,
@@ -38,6 +39,7 @@ export interface IStorageService {
   searchItems(query: string): Promise<Item[]>;
   findRelatedItems(content: string, limit?: number): Promise<RelatedItem[]>;
   updateItemMeta(id: string, update: ItemMetaUpdate): Promise<Item>;
+  updateItemContent(id: string, update: ItemContentUpdate): Promise<{ item: Item; markdown: string }>;
   updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }>;
   mergeIntoItem(id: string, classification: Classification, content: string, capture: Capture, edits: ConfirmEdits): Promise<Item>;
   deleteItem(id: string): Promise<Item>;
@@ -268,6 +270,45 @@ export class StorageService implements IStorageService {
       );
     });
     return nextItem;
+  }
+
+  async updateItemContent(id: string, update: ItemContentUpdate): Promise<{ item: Item; markdown: string }> {
+    const existing = await this.findItem(id);
+    if (!existing) throw new Error(`item ${id} was not found`);
+    if (existing.type !== "note" && existing.type !== "bookmark") {
+      throw new Error(`item ${id} content is not editable`);
+    }
+    const filePath = join(this.dataDir, existing.path);
+    const markdown = await readFile(filePath, "utf-8");
+    const meta = parseFrontmatter(markdown);
+    const body = update.body.replace(/\s+$/u, "") + "\n";
+    if (update.title !== undefined) {
+      const title = update.title.trim();
+      if (title) meta.title = title.slice(0, 120);
+    }
+    if (update.tags !== undefined) {
+      meta.tags = update.tags.map((tag: string) => tag.trim()).filter(Boolean).slice(0, 5);
+    }
+    const summary = body.replace(/\s+/g, " ").trim().slice(0, 900);
+    meta.summary = summary;
+    const nextMarkdown = buildFrontmatter(meta) + "\n\n" + body.trimStart();
+    const nextItem: Item = {
+      ...existing,
+      title: String(meta.title || existing.title),
+      summary: summary || undefined,
+      tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : existing.tags,
+    };
+    await this.mutex.run(async () => {
+      await writeFile(filePath, nextMarkdown, "utf-8");
+      const items = await this.readIndex();
+      const nextIndex = items.map((item) => (item.id === id ? nextItem : item));
+      await writeFile(
+        this.indexPath,
+        nextIndex.map((item) => JSON.stringify(item)).join("\n") + (nextIndex.length ? "\n" : ""),
+        "utf-8",
+      );
+    });
+    return { item: nextItem, markdown: nextMarkdown };
   }
 
   async updateTodoTask(id: string, taskIndex: number, completed: boolean): Promise<{ item: Item; markdown: string }> {

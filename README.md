@@ -61,7 +61,7 @@ Catcher wordmark; collapsed mode uses the compact app icon.
 There is no chat-style conversation UI — each capture is a single round trip:
 
 1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
-2. **Processing** — a quote of what you sent, spinner, and “Agent is classifying…”.
+2. **Processing** — a quote of what you sent, spinner, latest Agent activity, and a **Stop** action that cancels classification and restores the original input.
 3. **Review** — one **decision card** on the same screen: intent pills, editable title/tags, Agent summary, confirm or discard.
    Related saved notes/bookmarks are included in the Agent prompt. When a pasted paper or
    article matches an existing item, the card proposes a merge target instead of creating
@@ -167,9 +167,12 @@ Open http://localhost:5173 to exercise the sidebar + capture flow locally. Witho
 There is no lightweight LLM endpoint in Tutti, so classification uses a full agent session
 (`agent start` → poll `agent get` for failures → read `agent session-summary` for the
 completed assistant turn). It runs on a background task; `POST /api/capture` returns
-immediately and the UI polls for the result. ACP providers (e.g. claude-code) keep the
-session open after a turn, so completion is detected from the newest `completed` assistant
-message rather than the session status.
+immediately and the UI polls for the result and latest in-memory activity text. Processing
+captures can be canceled with `POST /api/captures/:id/cancel`, which cancels the active
+agent session when one exists, removes the pending capture, and returns the original
+content for retry. ACP providers (e.g. claude-code) keep the session open after a turn, so
+completion is detected from the newest `completed` assistant message rather than the
+session status.
 
 ## Install & debug in Tutti
 

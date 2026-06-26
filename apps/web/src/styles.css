@@ -744,7 +744,7 @@ select:focus {
 
 .capture-processing {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 10px 14px;
   border: 1.5px solid var(--border);
@@ -754,18 +754,50 @@ select:focus {
   color: var(--muted);
 }
 
+.capture-processing-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.capture-processing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
 .capture-processing p {
   margin: 0;
+  min-width: 0;
   color: var(--text);
   font-size: 14px;
   line-height: 20px;
 }
 
-.capture-processing span {
-  display: block;
+.capture-agent-activity {
+  margin-top: 4px;
+  max-height: 48px;
+  overflow: auto;
   color: var(--quiet);
   font-size: 12px;
   line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.capture-stop {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.capture-stop .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .decision-card {

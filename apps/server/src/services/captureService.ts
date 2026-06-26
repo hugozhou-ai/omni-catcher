@@ -19,6 +19,9 @@ import type { IIssueService } from "./issueService.js";
 
 export interface ICaptureService {
   create(content: string, url: string, source: CaptureSource): Promise<Capture>;
+  list(): Promise<Capture[]>;
+  read(id: string): Promise<Capture | null>;
+  cancel(id: string): Promise<{ canceled: true; content: string }>;
   confirm(id: string, intent: string | undefined, writeIssue: boolean, edits: ConfirmEdits): Promise<ConfirmResult>;
 }
 
@@ -26,7 +29,16 @@ export const ICaptureService = createServiceIdentifier<ICaptureService>("capture
 
 const CLASSIFY_LOG_PREFIX = "capture-classify";
 
+interface ActiveRunState {
+  canceled: boolean;
+  latestActivity?: string;
+  provider?: string;
+  sessionId?: string;
+}
+
 export class CaptureService implements ICaptureService {
+  private readonly activeRuns = new Map<string, ActiveRunState>();
+
   constructor(
     private readonly config: AppConfig,
     private readonly storage: IStorageService,
@@ -56,87 +68,172 @@ export class CaptureService implements ICaptureService {
       progress: "preparing",
     };
     await this.storage.writeCapture(capture);
+    this.activeRuns.set(capture.id, { canceled: false });
     // Fire-and-forget background classification; UI polls for the result.
     void this.classify(capture.id);
     return capture;
+  }
+
+  async list(): Promise<Capture[]> {
+    return (await this.storage.listCaptures()).map((capture) => this.withTransientState(capture));
+  }
+
+  async read(id: string): Promise<Capture | null> {
+    const capture = await this.storage.readCapture(id);
+    return capture ? this.withTransientState(capture) : null;
+  }
+
+  async cancel(id: string): Promise<{ canceled: true; content: string }> {
+    const capture = await this.storage.readCapture(id);
+    if (!capture) throw new Error(`capture ${id} was not found`);
+    const state = this.ensureActiveRun(id);
+    state.canceled = true;
+    const sessionId = state.sessionId || capture.agentSessionId || "";
+    if (sessionId) {
+      await this.agent.cancelSession(sessionId).catch((error) => {
+        this.log.warn(
+          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+            event: "cancel-agent-failed",
+            id,
+            sessionId,
+            error: (error as Error).message,
+          })}`,
+        );
+      });
+    }
+    await this.storage.deleteCapture(id);
+    this.log.info(
+      `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+        event: "canceled",
+        id,
+        sessionId,
+      })}`,
+    );
+    return { canceled: true, content: capture.content };
   }
 
   private async classify(id: string): Promise<void> {
     let capture = await this.storage.readCapture(id);
     if (!capture) return;
     try {
-      const settings = await this.storage.readSettings();
-      const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
-      await this.updateProgress(id, "finding_related");
-      const relatedItems = await this.storage.findRelatedItems(capture.content);
-      await this.updateProgress(id, "preparing_context");
-      const prompt = await this.classification.classifyPrompt(capture.content, relatedItems, (progress) =>
-        this.updateProgress(id, progress),
-      );
-      this.log.info(
-        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
-          event: "start",
-          id,
-          contentLength: capture.content.length,
-          promptLength: prompt.length,
-          relatedCount: relatedItems.length,
-          preferredProvider: preferredProvider || "",
-        })}`,
-      );
-      await this.updateProgress(id, "calling_agent");
-      const outcome = await this.agent.runPrompt(
-        prompt,
-        "Omni Catcher: classify",
-        this.config.classifyTimeoutMs,
-        preferredProvider,
-      );
-      const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
-      if (!parsed.source) parsed.source = "agent";
-      await this.updateProgress(id, "finalizing");
-      capture = (await this.storage.readCapture(id)) || capture;
-      capture.classification = withDeterministicMergePreview(
-        this.classification.normalize(parsed, capture.content, relatedItems),
-      );
-      capture.agentSessionId = outcome.sessionId;
-      capture.agentProvider = outcome.provider;
-      capture.status = "classified";
-      capture.error = null;
-      delete capture.progress;
-      this.log.info(
-        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
-          event: "classified",
-          id,
-          sessionId: outcome.sessionId,
-          provider: outcome.provider,
-          intent: capture.classification.primaryIntent,
-          confidence: capture.classification.confidence,
-        })}`,
-      );
-    } catch (error) {
-      this.log.warn(
-        `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
-          event: "failed",
-          id,
-          error: (error as Error).message,
-        })}`,
-      );
-      capture = (await this.storage.readCapture(id)) || capture;
-      capture.progress = "fallback";
-      const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
-      capture.classification = withDeterministicMergePreview(
-        this.classification.normalize(fallbackRaw, capture.content, await this.storage.findRelatedItems(capture.content)),
-      );
-      capture.status = "needs_review";
-      capture.error = (error as Error).message;
+      try {
+        const settings = await this.storage.readSettings();
+        const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
+        await this.updateProgress(id, "finding_related");
+        if (this.isCanceled(id)) return;
+        const relatedItems = await this.storage.findRelatedItems(capture.content);
+        await this.updateProgress(id, "preparing_context");
+        if (this.isCanceled(id)) return;
+        const prompt = await this.classification.classifyPrompt(capture.content, relatedItems, (progress) =>
+          this.updateProgress(id, progress),
+        );
+        if (this.isCanceled(id)) return;
+        this.log.info(
+          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+            event: "start",
+            id,
+            contentLength: capture.content.length,
+            promptLength: prompt.length,
+            relatedCount: relatedItems.length,
+            preferredProvider: preferredProvider || "",
+          })}`,
+        );
+        await this.updateProgress(id, "calling_agent");
+        const outcome = await this.agent.runPrompt(
+          prompt,
+          "Omni Catcher: classify",
+          this.config.classifyTimeoutMs,
+          preferredProvider,
+          {
+            isCanceled: () => this.isCanceled(id),
+            onStarted: (sessionId, provider) => {
+              const state = this.ensureActiveRun(id);
+              state.sessionId = sessionId;
+              state.provider = provider;
+            },
+            onActivity: (activityText) => {
+              const state = this.ensureActiveRun(id);
+              state.latestActivity = activityText;
+            },
+          },
+        );
+        if (this.isCanceled(id)) return;
+        const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
+        if (!parsed.source) parsed.source = "agent";
+        await this.updateProgress(id, "finalizing");
+        if (this.isCanceled(id)) return;
+        capture = (await this.storage.readCapture(id)) || capture;
+        if (!capture || this.isCanceled(id)) return;
+        capture.classification = withDeterministicMergePreview(
+          this.classification.normalize(parsed, capture.content, relatedItems),
+        );
+        capture.agentSessionId = outcome.sessionId;
+        capture.agentProvider = outcome.provider;
+        capture.status = "classified";
+        capture.error = null;
+        delete capture.progress;
+        this.log.info(
+          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+            event: "classified",
+            id,
+            sessionId: outcome.sessionId,
+            provider: outcome.provider,
+            intent: capture.classification.primaryIntent,
+            confidence: capture.classification.confidence,
+          })}`,
+        );
+      } catch (error) {
+        if (this.isCanceled(id)) return;
+        this.log.warn(
+          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+            event: "failed",
+            id,
+            error: (error as Error).message,
+          })}`,
+        );
+        capture = (await this.storage.readCapture(id)) || capture;
+        capture.progress = "fallback";
+        const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
+        capture.classification = withDeterministicMergePreview(
+          this.classification.normalize(
+            fallbackRaw,
+            capture.content,
+            await this.storage.findRelatedItems(capture.content),
+          ),
+        );
+        capture.status = "needs_review";
+        capture.error = (error as Error).message;
+      }
+      if (!this.isCanceled(id)) await this.storage.writeCapture(capture);
+    } finally {
+      this.activeRuns.delete(id);
     }
-    await this.storage.writeCapture(capture);
   }
 
   private async updateProgress(id: string, progress: CaptureProgress): Promise<void> {
+    if (this.isCanceled(id)) return;
     const capture = await this.storage.readCapture(id);
     if (!capture || capture.status !== "classifying") return;
     capture.progress = progress;
     await this.storage.writeCapture(capture);
+  }
+
+  private ensureActiveRun(id: string): ActiveRunState {
+    const existing = this.activeRuns.get(id);
+    if (existing) return existing;
+    const state: ActiveRunState = { canceled: false };
+    this.activeRuns.set(id, state);
+    return state;
+  }
+
+  private isCanceled(id: string): boolean {
+    return Boolean(this.activeRuns.get(id)?.canceled);
+  }
+
+  private withTransientState(capture: Capture): Capture {
+    const state = this.activeRuns.get(capture.id);
+    if (!state?.latestActivity || capture.status !== "classifying") return capture;
+    return { ...capture, activityText: state.latestActivity };
   }
 
   async confirm(

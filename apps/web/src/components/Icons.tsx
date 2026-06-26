@@ -11,6 +11,7 @@ export type IconName =
   | "list"
   | "search"
   | "spark"
+  | "stop"
   | "trash";
 
 export function Icon(props: { name: IconName; className?: string }): ReactNode {
@@ -97,6 +98,8 @@ function pathFor(name: IconName): ReactNode {
           <path d="M18 4l2 2-2 2-2-2 2-2Z" />
         </>
       );
+    case "stop":
+      return <path d="M7 7h10v10H7V7Z" />;
     case "trash":
       return (
         <>

@@ -77,6 +77,8 @@ export interface Capture {
   agentProvider: string | null;
   error: string | null;
   progress?: CaptureProgress;
+  /** Transient, in-memory status text for the current agent turn. Not persisted. */
+  activityText?: string;
 }
 
 export interface Item {

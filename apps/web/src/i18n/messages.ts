@@ -20,6 +20,9 @@ export interface Messages {
   progressCallingAgent: string;
   progressFinalizing: string;
   progressFallback: string;
+  stopClassification: string;
+  stoppingClassification: string;
+  classificationStopped: string;
   needsReview: string;
   classificationError: string;
   ruleBasedDecision: string;

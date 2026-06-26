@@ -106,10 +106,12 @@ export class StorageService implements IStorageService {
   }
 
   async writeCapture(capture: Capture): Promise<Capture> {
+    const persisted = { ...capture };
+    delete persisted.activityText;
     await this.mutex.run(() =>
-      writeFile(this.capturePath(capture.id), JSON.stringify(capture, null, 2), "utf-8"),
+      writeFile(this.capturePath(capture.id), JSON.stringify(persisted, null, 2), "utf-8"),
     );
-    return capture;
+    return persisted;
   }
 
   async listCaptures(): Promise<Capture[]> {

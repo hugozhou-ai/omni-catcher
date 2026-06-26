@@ -14,6 +14,7 @@ import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
 import { Select } from "../../components/Select.js";
+import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -77,6 +78,7 @@ export function CaptureHome(): ReactNode {
   const [submitted, setSubmitted] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const [providers, setProviders] = useState<string[]>([]);
   const [providerHint, setProviderHint] = useState("");
   const [preferred, setPreferred] = useState("");
@@ -117,6 +119,7 @@ export function CaptureHome(): ReactNode {
     setSubmitted("");
     setActiveId(null);
     setBusy(false);
+    setCanceling(false);
   }
 
   function onProviderChange(value: string): void {
@@ -136,6 +139,23 @@ export function CaptureHome(): ReactNode {
       showToast((error as Error).message);
       reset();
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelClassification(): Promise<void> {
+    if (!activeCapture || canceling) return;
+    setCanceling(true);
+    try {
+      const result = await captureService.cancel(activeCapture.id);
+      setContent(result.content || submitted);
+      setSubmitted("");
+      setActiveId(null);
+      showToast(t("classificationStopped"));
+    } catch (error) {
+      showToast((error as Error).message);
+    } finally {
+      setCanceling(false);
       setBusy(false);
     }
   }
@@ -183,9 +203,22 @@ export function CaptureHome(): ReactNode {
       {phase === "processing" ? (
         <div className="capture-processing">
           <Spinner />
-          <div>
-            <p>{progressText(activeCapture?.progress, t)}</p>
-            <span>{t("classifying")}</span>
+          <div className="capture-processing-body">
+            <div className="capture-processing-header">
+              <p>{progressText(activeCapture?.progress, t)}</p>
+              <button
+                type="button"
+                className="capture-stop danger"
+                disabled={canceling}
+                onClick={() => void cancelClassification()}
+              >
+                <Icon name="stop" />
+                {canceling ? t("stoppingClassification") : t("stopClassification")}
+              </button>
+            </div>
+            <div className="capture-agent-activity" aria-live="polite">
+              {activeCapture?.activityText || progressText(activeCapture?.progress, t)}
+            </div>
           </div>
         </div>
       ) : null}

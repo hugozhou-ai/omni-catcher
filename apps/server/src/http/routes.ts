@@ -50,10 +50,10 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     return storage.writeSettings(settings);
   });
 
-  app.get("/api/captures", async () => ({ captures: await storage.listCaptures() }));
+  app.get("/api/captures", async () => ({ captures: await captures.list() }));
 
   app.get<{ Params: { id: string } }>("/api/captures/:id", async (request, reply) => {
-    const capture = await storage.readCapture(request.params.id);
+    const capture = await captures.read(request.params.id);
     if (!capture) return reply.code(404).send({ error: "not found" });
     return { capture };
   });
@@ -76,6 +76,10 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
       Boolean(body.writeIssue),
       (body.edits as ConfirmEdits) || {},
     );
+  });
+
+  app.post<{ Params: { id: string } }>("/api/captures/:id/cancel", async (request) => {
+    return captures.cancel(request.params.id);
   });
 
   app.post<{ Params: { id: string } }>("/api/captures/:id/reject", async (request) => {

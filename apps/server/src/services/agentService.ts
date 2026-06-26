@@ -8,11 +8,24 @@ export interface AgentRunResult {
   provider: string;
 }
 
+export interface AgentRunCallbacks {
+  isCanceled?(): boolean | Promise<boolean>;
+  onStarted?(sessionId: string, provider: string): void | Promise<void>;
+  onActivity?(activityText: string): void | Promise<void>;
+}
+
 export interface IAgentService {
   listProviders(): Promise<AgentProvidersResult>;
   resolveProvider(preferred?: string): Promise<string>;
   resolveModel(provider: string): Promise<string>;
-  runPrompt(prompt: string, title: string, timeoutMs: number, preferred?: string): Promise<AgentRunResult>;
+  runPrompt(
+    prompt: string,
+    title: string,
+    timeoutMs: number,
+    preferred?: string,
+    callbacks?: AgentRunCallbacks,
+  ): Promise<AgentRunResult>;
+  cancelSession(sessionId: string): Promise<void>;
 }
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
@@ -81,7 +94,14 @@ export class AgentService implements IAgentService {
     }
   }
 
-  async runPrompt(prompt: string, title: string, timeoutMs: number, preferred?: string): Promise<AgentRunResult> {
+  async runPrompt(
+    prompt: string,
+    title: string,
+    timeoutMs: number,
+    preferred?: string,
+    callbacks?: AgentRunCallbacks,
+  ): Promise<AgentRunResult> {
+    if (await callbacks?.isCanceled?.()) throw new Error("agent session was canceled");
     let provider = await this.resolveProvider(preferred);
     const model = (await this.resolveModel(provider)) || DEFAULT_MODELS[provider] || "";
     if (!model) throw new Error(`no model available for provider ${provider}`);
@@ -108,9 +128,18 @@ export class AgentService implements IAgentService {
     const sessionId = String(startSession.agentSessionId || "").trim();
     if (!sessionId) throw new Error("agent session was not created");
     provider = normalizeProvider(startSession.provider) || provider;
+    await callbacks?.onStarted?.(sessionId, provider);
+    if (await callbacks?.isCanceled?.()) {
+      await this.cancelSession(sessionId).catch(() => undefined);
+      throw new Error("agent session was canceled");
+    }
 
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      if (await callbacks?.isCanceled?.()) {
+        await this.cancelSession(sessionId).catch(() => undefined);
+        throw new Error("agent session was canceled");
+      }
       // Hard failures (e.g. provider rate limit) surface on the session record.
       const info = await this.cli.run(["agent", "get", "--session-id", sessionId], 30_000);
       const session = (info.session as Record<string, unknown>) || {};
@@ -126,14 +155,24 @@ export class AgentService implements IAgentService {
       // ACP providers (e.g. claude-code) keep the session open after a turn, so the
       // session status stays "created"/"running"; completion is detected from the
       // assistant turn becoming the latest message with a "completed" status.
-      const text = await this.completedAssistantText(sessionId);
+      const { completedText, activityText } = await this.inspectAssistantMessages(sessionId);
+      if (activityText) await callbacks?.onActivity?.(activityText);
+      const text = completedText;
       if (text) return { text, sessionId, provider };
       await delay(2000);
     }
     throw new Error("agent timed out before producing a result");
   }
 
-  private async completedAssistantText(sessionId: string): Promise<string | null> {
+  async cancelSession(sessionId: string): Promise<void> {
+    const id = sessionId.trim();
+    if (!id) return;
+    await this.cli.run(["agent", "cancel", "--session-id", id], 30_000);
+  }
+
+  private async inspectAssistantMessages(
+    sessionId: string,
+  ): Promise<{ completedText: string | null; activityText: string | null }> {
     const result = await this.cli.run(
       ["agent", "session-summary", "--session-id", sessionId, "--limit", "80"],
       30_000,
@@ -143,7 +182,8 @@ export class AgentService implements IAgentService {
       (m): m is Record<string, unknown> => Boolean(m) && typeof m === "object",
     );
     const latest = messages.find((m) => Number(m.version || 0) === latestVersion);
-    if (!latest) return null;
+    const activityText = latestActivityText(messages);
+    if (!latest) return { completedText: null, activityText };
 
     const latestRole = String(latest.role || "").trim().toLowerCase();
     const latestStatus = String(latest.status || "").trim().toLowerCase();
@@ -162,11 +202,11 @@ export class AgentService implements IAgentService {
 
     for (const message of completedAssistant) {
       const text = messageText(message);
-      if (text && looksLikeStructuredJsonOutput(text)) return text;
+      if (text && looksLikeStructuredJsonOutput(text)) return { completedText: text, activityText };
     }
 
-    if (latestIsCompletedAssistant) return null;
-    return null;
+    if (latestIsCompletedAssistant) return { completedText: null, activityText };
+    return { completedText: null, activityText };
   }
 }
 
@@ -179,6 +219,24 @@ function looksLikeStructuredJsonOutput(text: string): boolean {
 function messageText(message: Record<string, unknown>): string | null {
   if (typeof message.text === "string" && message.text.trim()) return message.text.trim();
   return extractMessageText(message.payload);
+}
+
+function latestActivityText(messages: Record<string, unknown>[]): string | null {
+  const sorted = [...messages].sort((left, right) => Number(right.version || 0) - Number(left.version || 0));
+  for (const message of sorted) {
+    const role = String(message.role || "").trim().toLowerCase();
+    if (role === "user") continue;
+    const text = messageText(message);
+    if (!text || looksLikeStructuredJsonOutput(text)) continue;
+    return truncateActivity(text);
+  }
+  return null;
+}
+
+function truncateActivity(text: string): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length <= 240) return compact;
+  return `${compact.slice(0, 237)}...`;
 }
 
 function extractMessageText(value: unknown): string | null {

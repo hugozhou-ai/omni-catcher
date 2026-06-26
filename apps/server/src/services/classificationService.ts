@@ -40,9 +40,13 @@ export class ClassificationService implements IClassificationService {
     const text = (content || "").trim();
     const urls = extractUrls(text);
     if (url && !urls.includes(url)) urls.unshift(url);
-    const tasks = ruleTasks(text);
+    const knowledgeCaptureCommand = looksLikeKnowledgeCaptureCommand(text);
+    const tasks = knowledgeCaptureCommand ? [] : ruleTasks(text);
     let intent: ClassificationIntent;
-    if (urls.length && text.length <= 600 && !looksLikeProse(text)) {
+    if (knowledgeCaptureCommand) {
+      intent = "note";
+    }
+    else if (urls.length && text.length <= 600 && !looksLikeProse(text)) {
       intent = urls.some(looksLikeDocumentUrl) ? "note" : "bookmark";
     }
     else if (tasks.length >= 1 && text.length <= 400) intent = "todo";
@@ -572,6 +576,19 @@ function tagsFromUrl(url: string, type: MixedItem["type"]): string[] {
 
 function looksLikeProse(text: string): boolean {
   return text.split(/\s+/).length > 40 || (text.match(/\n/g)?.length || 0) > 4;
+}
+
+function looksLikeKnowledgeCaptureCommand(text: string): boolean {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (!compact) return false;
+  const commandLike =
+    /^(?:帮我|请|麻烦|把|将|新建|创建|整理|汇总|总结|记录|保存|归档|help me|please|create|save|capture|organize|summari[sz]e|merge)/i.test(
+      compact,
+    ) || /(?:直接帮我|帮我.*(?:创建|新建|整理|汇总|总结|保存|记录))/i.test(compact);
+  if (!commandLike) return false;
+  return /(?:笔记|文档|论文|文章|资料|知识库|阅读|读书|汇总|总结|note|notes|document|paper|papers|article|reading|knowledge)/i.test(
+    compact,
+  );
 }
 
 function looksLikeDocumentUrl(url: string): boolean {

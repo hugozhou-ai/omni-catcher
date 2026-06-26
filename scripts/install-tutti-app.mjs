@@ -16,8 +16,17 @@
  *   --no-package      Skip `pnpm package:tutti` and reuse build/tutti-app/package.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, tmpdir } from "node:os";
 
@@ -35,6 +44,56 @@ const valueOf = (flag) => {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
+}
+
+function legacyDataDir(workspaceId, appId) {
+  return resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId, "data");
+}
+
+function installationDataDirs(appId) {
+  const root = resolve(homedir(), ".tutti/apps/installations", appId);
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(root, entry.name, "data"));
+}
+
+function dataDirScore(dir) {
+  if (!existsSync(dir)) return 0;
+  const indexPath = join(dir, "index.jsonl");
+  if (existsSync(indexPath)) {
+    const lines = readFileSync(indexPath, "utf-8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean).length;
+    if (lines > 0) return lines * 1000;
+  }
+  let files = 0;
+  for (const folder of ["inbox", "notes", "bookmarks", "todos"]) {
+    const folderPath = join(dir, folder);
+    if (!existsSync(folderPath)) continue;
+    files += readdirSync(folderPath).filter((name) => !name.startsWith(".")).length;
+  }
+  return files;
+}
+
+function pickRichestDataDir(dirs) {
+  let best = null;
+  let bestScore = 0;
+  for (const dir of dirs) {
+    const score = dataDirScore(dir);
+    if (score > bestScore) {
+      bestScore = score;
+      best = dir;
+    }
+  }
+  return best;
+}
+
+function restoreDataDir(sourceDir, targetDir) {
+  mkdirSync(targetDir, { recursive: true });
+  rmSync(targetDir, { recursive: true, force: true });
+  cpSync(sourceDir, targetDir, { recursive: true });
 }
 
 if (has("--bump")) {
@@ -92,14 +151,18 @@ if (!workspaceId) {
 if (!workspaceId) throw new Error("could not resolve a target workspace id");
 
 const appsBase = `/v1/workspaces/${workspaceId}/apps`;
-const stateRoot = resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId);
-const dataDir = resolve(stateRoot, "data");
 const dataBackupRoot = mkdtempSync(resolve(tmpdir(), "omni-catcher-data-"));
 const dataBackupDir = resolve(dataBackupRoot, "data");
+const candidateDataDirs = [...new Set([...installationDataDirs(appId), legacyDataDir(workspaceId, appId)])];
+const sourceDataDir = pickRichestDataDir(candidateDataDirs);
+
 console.log(`• target workspace ${workspaceId}`);
-if (existsSync(dataDir)) {
-  cpSync(dataDir, dataBackupDir, { recursive: true });
-  console.log(`• backed up app data -> ${dataBackupDir}`);
+if (sourceDataDir) {
+  cpSync(sourceDataDir, dataBackupDir, { recursive: true });
+  console.log(`• backed up app data from ${sourceDataDir}`);
+  console.log(`• backup snapshot -> ${dataBackupDir}`);
+} else {
+  console.log("• no existing app data found to back up");
 }
 
 try {
@@ -113,9 +176,16 @@ console.log(`• imported ${appId} v${version}`);
 await api("POST", `${appsBase}/${appId}/install`);
 console.log(`• installed ${appId} v${version}`);
 if (existsSync(dataBackupDir)) {
-  rmSync(dataDir, { recursive: true, force: true });
-  cpSync(dataBackupDir, dataDir, { recursive: true });
-  console.log("• restored app data");
+  const restoreTargets = installationDataDirs(appId);
+  if (restoreTargets.length === 0) {
+    throw new Error(
+      `installed ${appId} but no installation data dir was found under ~/.tutti/apps/installations/${appId}`,
+    );
+  }
+  for (const targetDataDir of restoreTargets) {
+    restoreDataDir(dataBackupDir, targetDataDir);
+    console.log(`• restored app data -> ${targetDataDir}`);
+  }
 }
 let launched;
 for (let attempt = 0; attempt < 5; attempt++) {
@@ -130,8 +200,12 @@ for (let attempt = 0; attempt < 5; attempt++) {
 }
 const app = launched.app || launched;
 
+const activeDataDirs = installationDataDirs(appId);
+const activeDataDir = activeDataDirs[0];
+const installationRoot = activeDataDir ? resolve(activeDataDir, "..") : "(unknown)";
+
 console.log(`✓ installed & launched ${appId} v${app.version} (status=${app.status})`);
 console.log(`  launchUrl : ${app.launchUrl || "(starting)"}`);
-console.log(`  data dir  : ${dataDir}`);
-console.log(`  logs      : ${resolve(stateRoot, "logs")}/{runtime,web}.log`);
+console.log(`  data dir  : ${activeDataDir || "(unknown)"}`);
+console.log(`  logs      : ${installationRoot}/logs/{runtime,web}.log`);
 console.log(`  CLI       : TUTTI_WORKSPACE_ID=${workspaceId} tutti --json ${appId} pending`);

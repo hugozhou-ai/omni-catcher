@@ -202,14 +202,19 @@ executable `bootstrap.sh`).
 
 ### Where to look when debugging
 
-For workspace `<ws>` and app id `omni-catcher`:
+For app id `omni-catcher` (current Tutti desktop layout):
 
 ```text
-~/.tutti/apps/workspaces/<ws>/omni-catcher/logs/runtime.log  # server stdout/stderr
-~/.tutti/apps/workspaces/<ws>/omni-catcher/logs/web.log      # webview diagnostics
-~/.tutti/apps/workspaces/<ws>/omni-catcher/data/             # saved markdown + index.jsonl
+~/.tutti/apps/installations/omni-catcher/<install-id>/data/  # saved markdown + index.jsonl
+~/.tutti/apps/installations/omni-catcher/<install-id>/logs/runtime.log
+~/.tutti/apps/installations/omni-catcher/<install-id>/logs/web.log
 ~/.tutti/logs/tuttid.log                                     # daemon (agent + reference) logs
 ```
+
+Confirm the live path from the running server: `curl :<port>/api/context` and read
+`dataDir`. Older Tutti builds used `~/.tutti/apps/workspaces/<ws>/omni-catcher/data/`
+instead; `scripts/install-tutti-app.mjs` now backs up/restores against the richest
+source and writes back to the current installation data dir.
 
 The server logs the agent provider, classification failures, and the runtime port
 (`[omni-catcher] listening on 127.0.0.1:<port>`) — hit that port directly to bypass the

@@ -218,6 +218,10 @@ export class CaptureService implements ICaptureService {
     const capture = await this.storage.readCapture(id);
     if (!capture || capture.status !== "classifying") return;
     capture.progress = progress;
+    const state = this.ensureActiveRun(id);
+    if (progress !== "calling_agent") {
+      state.latestActivity = progressActivityText(progress);
+    }
     await this.storage.writeCapture(capture);
   }
 
@@ -379,4 +383,25 @@ function mergeTags(left: unknown, right: unknown): string[] {
     }
   }
   return result.slice(0, 5);
+}
+
+function progressActivityText(progress: CaptureProgress): string {
+  switch (progress) {
+    case "preparing":
+      return "Preparing content for classification";
+    case "finding_related":
+      return "Searching related saved notes and bookmarks";
+    case "preparing_context":
+      return "Building classification context";
+    case "fetching_pages":
+      return "Fetching linked page content";
+    case "browser_pages":
+      return "Analyzing pages in the browser";
+    case "finalizing":
+      return "Organizing classification results";
+    case "fallback":
+      return "Agent unavailable; using rule-based preview";
+    default:
+      return "";
+  }
 }

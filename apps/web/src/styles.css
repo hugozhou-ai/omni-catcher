@@ -749,9 +749,6 @@ select:focus {
 }
 
 .capture-processing {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
   padding: 10px 14px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
@@ -761,7 +758,6 @@ select:focus {
 }
 
 .capture-processing-body {
-  flex: 1;
   min-width: 0;
 }
 
@@ -773,6 +769,18 @@ select:focus {
   min-width: 0;
 }
 
+.capture-processing-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.capture-processing-status .spinner {
+  flex: 0 0 auto;
+}
+
 .capture-processing p {
   margin: 0;
   min-width: 0;
@@ -782,8 +790,9 @@ select:focus {
 }
 
 .capture-agent-activity {
-  margin-top: 4px;
-  max-height: 48px;
+  margin-top: 8px;
+  padding-left: 26px;
+  max-height: 72px;
   overflow: auto;
   color: var(--quiet);
   font-size: 12px;

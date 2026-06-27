@@ -87,6 +87,7 @@ export function CaptureHome(): ReactNode {
 
   const activeCapture: Capture | null =
     activeId ? captures.find((c) => c.id === activeId) ?? null : null;
+  const agentActivity = activityDetailText(activeCapture);
 
   const phase: Phase = !activeCapture
     ? "idle"
@@ -202,10 +203,12 @@ export function CaptureHome(): ReactNode {
 
       {phase === "processing" ? (
         <div className="capture-processing">
-          <Spinner />
           <div className="capture-processing-body">
             <div className="capture-processing-header">
-              <p>{progressText(activeCapture?.progress, t)}</p>
+              <div className="capture-processing-status">
+                <Spinner />
+                <p>{progressText(activeCapture?.progress, t)}</p>
+              </div>
               <button
                 type="button"
                 className="capture-stop danger"
@@ -216,9 +219,11 @@ export function CaptureHome(): ReactNode {
                 {canceling ? t("stoppingClassification") : t("stopClassification")}
               </button>
             </div>
-            <div className="capture-agent-activity" aria-live="polite">
-              {activeCapture?.activityText || progressText(activeCapture?.progress, t)}
-            </div>
+            {agentActivity ? (
+              <div className="capture-agent-activity" aria-live="polite">
+                {agentActivity}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -310,4 +315,9 @@ function progressText(
     default:
       return t("classifying");
   }
+}
+
+function activityDetailText(capture: Capture | null | undefined): string | null {
+  const activity = capture?.activityText?.trim();
+  return activity || null;
 }

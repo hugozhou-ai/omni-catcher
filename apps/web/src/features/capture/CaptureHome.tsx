@@ -189,15 +189,15 @@ export function CaptureHome(): ReactNode {
 
   return (
     <div className="capture-home">
-      <div className="capture-hero">
-        <div className="capture-brand">
-          <div className="capture-logo-frame">
-            <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" draggable={false} />
+      <div className="capture-body">
+        <div className="capture-hero">
+          <div className="capture-brand">
+            <div className="capture-logo-frame">
+              <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" draggable={false} />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="capture-body">
         {phase !== "idle" && submitted ? (
           <blockquote className="capture-quote">{submitted}</blockquote>
         ) : null}

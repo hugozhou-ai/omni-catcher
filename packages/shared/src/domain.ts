@@ -19,6 +19,17 @@ export interface TodoUpgrade {
   suggestedIssueTitle: string;
 }
 
+export type SaveMode = "new" | "merge" | "collection";
+
+export interface SavePlan {
+  mode: SaveMode;
+  targetItemId?: string;
+  targetTitle?: string;
+  insertHeading?: string;
+  reason: string;
+  bodyPreview: string;
+}
+
 export interface MergePreview {
   targetItemId?: string;
   targetTitle: string;
@@ -36,6 +47,10 @@ export interface RelatedItem {
   score: number;
   reason: string;
   excerpt?: string;
+  /** Markdown headings available for insertion targets. */
+  insertHeadings?: string[];
+  /** True when the note looks like a collection/summary document. */
+  isCollection?: boolean;
 }
 
 export interface MixedItem {
@@ -45,6 +60,7 @@ export interface MixedItem {
   url?: string;
   tags?: string[];
   tasks?: string[];
+  savePlan?: SavePlan | null;
 }
 
 export interface Classification {
@@ -58,6 +74,9 @@ export interface Classification {
   extractedTasks: string[];
   items: MixedItem[];
   relatedItems?: RelatedItem[];
+  /** Preferred save decision; UI and write logic use this over mergePreview. */
+  savePlan?: SavePlan | null;
+  /** Legacy merge preview; kept for backward compatibility. */
   mergePreview?: MergePreview | null;
   todoUpgrade: TodoUpgrade;
   /** "agent" | "rule" | "rule-fallback" */
@@ -124,6 +143,10 @@ export interface ConfirmEdits {
   tags?: string[];
   urgency?: PriorityLevel;
   importance?: PriorityLevel;
+  saveMode?: SaveMode;
+  targetItemId?: string;
+  insertHeading?: string;
+  bodyPreview?: string;
 }
 
 export interface ItemMetaUpdate {

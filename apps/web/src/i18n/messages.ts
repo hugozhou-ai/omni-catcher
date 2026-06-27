@@ -107,6 +107,17 @@ export interface Messages {
   cancelEdit: string;
   editMode: string;
   previewMode: string;
+  savePlanTitle: string;
+  savePlanReason: string;
+  savePlanMode: string;
+  savePlanModeNew: string;
+  savePlanModeMerge: string;
+  savePlanModeCollection: string;
+  savePlanTarget: string;
+  savePlanInsertHeading: string;
+  savePlanBodyPreview: string;
+  savePlanNoTarget: string;
+  confirmCollection: string;
 }
 
 export function normalizeLocale(value: string | null | undefined): Locale {

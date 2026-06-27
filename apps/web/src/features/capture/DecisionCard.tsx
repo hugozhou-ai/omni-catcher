@@ -1,5 +1,13 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { Capture, Classification, ConfirmResult, Intent, PriorityLevel } from "@omni-catcher/shared";
+import type {
+  Capture,
+  Classification,
+  ConfirmResult,
+  Intent,
+  PriorityLevel,
+  SaveMode,
+  SavePlan,
+} from "@omni-catcher/shared";
 import { useService } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
@@ -11,6 +19,7 @@ import { showToast } from "../../platform/toast.js";
 
 const BASE_INTENTS: Intent[] = ["note", "bookmark", "todo"];
 const MIXED_INTENTS: Intent[] = [...BASE_INTENTS, "mixed"];
+const SAVE_MODES: SaveMode[] = ["new", "merge", "collection"];
 
 export function DecisionCard(props: {
   capture: Capture;
@@ -22,6 +31,7 @@ export function DecisionCard(props: {
   const library = useService(ILibraryService);
 
   const data = capture.classification || capture.rulePreview;
+  const initialPlan = resolveInitialSavePlan(data);
   const primary = data.primaryIntent === "mixed" ? "mixed" : data.primaryIntent;
   const selectable = data.items.length ? MIXED_INTENTS : BASE_INTENTS;
 
@@ -35,13 +45,26 @@ export function DecisionCard(props: {
   const [writeIssue, setWriteIssue] = useState(false);
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(false);
+  const [saveMode, setSaveMode] = useState<SaveMode>(initialPlan?.mode || "new");
+  const [targetItemId, setTargetItemId] = useState(initialPlan?.targetItemId || "");
+  const [insertHeading, setInsertHeading] = useState(initialPlan?.insertHeading || "");
+  const [bodyPreview, setBodyPreview] = useState(initialPlan?.bodyPreview || "");
 
-  const showIssue = intent === "todo" && data.todoUpgrade?.agentCompletable;
-  const mergeTargetId = intent === "note" ? data.mergePreview?.targetItemId : undefined;
+  const showSavePlan = intent === "note";
+  const mergeTargetId =
+    showSavePlan && (saveMode === "merge" || (saveMode === "collection" && targetItemId)) ? targetItemId : undefined;
   const titleValue = title.trim();
   const canSave = Boolean(titleValue) && !busy;
   const isRuleBased = data.source === "rule" || data.source === "rule-fallback";
   const splitCount = intent === "mixed" ? data.items.length : 0;
+  const targetOptions = useMemo(
+    () => buildTargetOptions(data, saveMode, t("savePlanNoTarget")),
+    [data, saveMode, t],
+  );
+  const headingOptions = useMemo(
+    () => buildHeadingOptions(data, targetItemId, insertHeading),
+    [data, targetItemId, insertHeading],
+  );
 
   async function confirm(): Promise<void> {
     if (!titleValue) {
@@ -52,7 +75,7 @@ export function DecisionCard(props: {
     try {
       const result = await captureService.confirm(capture.id, {
         intent,
-        writeIssue: showIssue ? writeIssue : false,
+        writeIssue: intent === "todo" && data.todoUpgrade?.agentCompletable ? writeIssue : false,
         edits: {
           title: titleValue,
           tags: tags
@@ -60,6 +83,15 @@ export function DecisionCard(props: {
             .map((s) => s.trim())
             .filter(Boolean),
           ...(intent === "todo" ? { urgency, importance } : {}),
+          ...(showSavePlan ?
+            {
+              saveMode,
+              targetItemId:
+                saveMode === "merge" || saveMode === "collection" ? targetItemId || undefined : undefined,
+              insertHeading: insertHeading.trim() || undefined,
+              bodyPreview: bodyPreview.trim() || undefined,
+            }
+          : {}),
         },
       });
       showToast(issueFailed(result) ? t("savedIssueFailed") : t("saved"));
@@ -82,22 +114,9 @@ export function DecisionCard(props: {
     setBusy(true);
     try {
       await captureService.reject(capture.id);
-      console.info(
-        `capture-reject-ui ${JSON.stringify({
-          event: "done",
-          id: capture.id,
-        })}`,
-      );
       showToast(t("discarded"));
       onDone();
     } catch (error) {
-      console.info(
-        `capture-reject-ui ${JSON.stringify({
-          event: "failed",
-          id: capture.id,
-          error: (error as Error).message,
-        })}`,
-      );
       showToast((error as Error).message);
       setBusy(false);
     }
@@ -108,6 +127,22 @@ export function DecisionCard(props: {
     event.preventDefault();
     setDetail(true);
   }
+
+  const savePlanPanel = showSavePlan ? (
+    <SavePlanEditor
+      data={data}
+      saveMode={saveMode}
+      targetItemId={targetItemId}
+      insertHeading={insertHeading}
+      bodyPreview={bodyPreview}
+      targetOptions={targetOptions}
+      headingOptions={headingOptions}
+      onSaveMode={setSaveMode}
+      onTargetItemId={setTargetItemId}
+      onInsertHeading={setInsertHeading}
+      onBodyPreview={setBodyPreview}
+    />
+  ) : null;
 
   if (detail) {
     return (
@@ -128,6 +163,7 @@ export function DecisionCard(props: {
           onTitle={setTitle}
           onTags={setTags}
         />
+        {savePlanPanel}
         <div className="decision-detail-grid">
           {data.summary ? (
             <section className="detail-section">
@@ -139,6 +175,11 @@ export function DecisionCard(props: {
             <section className="detail-section">
               <h3>{t("decisionReasons")}</h3>
               <div className="decision-reasons">
+                {initialPlan?.reason ? (
+                  <p>
+                    <strong>{t("savePlanReason")}:</strong> {initialPlan.reason}
+                  </p>
+                ) : null}
                 {data.alternatives.map((alternative) => (
                   <p key={`${alternative.intent}-${alternative.reason}`}>
                     <Badge intent={alternative.intent} label={t(intentKey(alternative.intent))} />
@@ -153,6 +194,7 @@ export function DecisionCard(props: {
                         <li key={item.id}>
                           <strong>{item.title}</strong>
                           <span> - {item.reason}</span>
+                          {item.isCollection ? <span> ({t("savePlanModeCollection")})</span> : null}
                         </li>
                       ))}
                     </ul>
@@ -179,22 +221,6 @@ export function DecisionCard(props: {
             <h3>{t("originalContent")}</h3>
             <pre>{capture.content}</pre>
           </section>
-          {data.mergePreview ? (
-            <section className="detail-section merge-preview">
-              <h3>{data.mergePreview.targetTitle || t("existingArticle")}</h3>
-              {data.mergePreview.targetItemId ? (
-                <p className="merge-target">
-                  {t("mergeTarget")} <code>{data.mergePreview.targetItemId}</code>
-                </p>
-              ) : null}
-              {data.mergePreview.existingContent ? (
-                <pre className="existing-content">{data.mergePreview.existingContent}</pre>
-              ) : null}
-              {data.mergePreview.insertedContent ? (
-                <pre className="inserted-content">{data.mergePreview.insertedContent}</pre>
-              ) : null}
-            </section>
-          ) : null}
           {data.items.length ? (
             <section className="detail-section">
               <h3>{t("mixedItems")}</h3>
@@ -206,6 +232,11 @@ export function DecisionCard(props: {
                     {item.summary ? <p>{item.summary}</p> : null}
                     {item.url ? <p className="detail-url">{item.url}</p> : null}
                     {item.tags?.length ? <p className="detail-tags">{item.tags.join(", ")}</p> : null}
+                    {item.savePlan ? (
+                      <p className="detail-tags">
+                        {t("savePlanMode")}: {item.savePlan.mode} — {item.savePlan.reason}
+                      </p>
+                    ) : null}
                     {item.tasks?.length ? (
                       <ul>
                         {item.tasks.map((task) => (
@@ -225,6 +256,7 @@ export function DecisionCard(props: {
           urgency={urgency}
           importance={importance}
           writeIssue={writeIssue}
+          saveMode={saveMode}
           mergeTargetId={mergeTargetId}
           busy={busy}
           canSave={canSave}
@@ -273,13 +305,19 @@ export function DecisionCard(props: {
 
         {isRuleBased ? <div className="notice info">{t("ruleBasedDecision")}</div> : null}
         {mergeTargetId ? <div className="notice info">{t("mergeIntoHint")}</div> : null}
-        {intent === "note" && data.mergePreview && !mergeTargetId ? (
+        {showSavePlan && saveMode === "collection" && !mergeTargetId ? (
           <div className="notice info">{t("createCollectionHint")}</div>
         ) : null}
         {splitCount ? <div className="notice info">{t("mixedSaveHint")}</div> : null}
+        {initialPlan?.reason ? (
+          <div className="notice info">
+            {t("savePlanReason")}: {initialPlan.reason}
+          </div>
+        ) : null}
 
         <h3 className="decision-preview-title">{title || data.title || t("titleRequired")}</h3>
         {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
+        {bodyPreview ? <pre className="decision-body-preview">{bodyPreview.slice(0, 320)}</pre> : null}
         <p className="decision-original-preview">{capture.content}</p>
       </div>
 
@@ -294,6 +332,7 @@ export function DecisionCard(props: {
           onTitle={setTitle}
           onTags={setTags}
         />
+        {savePlanPanel}
       </div>
 
       <DecisionFooter
@@ -302,6 +341,7 @@ export function DecisionCard(props: {
         urgency={urgency}
         importance={importance}
         writeIssue={writeIssue}
+        saveMode={saveMode}
         mergeTargetId={mergeTargetId}
         busy={busy}
         canSave={canSave}
@@ -313,6 +353,138 @@ export function DecisionCard(props: {
       />
     </div>
   );
+}
+
+function SavePlanEditor(props: {
+  data: Classification;
+  saveMode: SaveMode;
+  targetItemId: string;
+  insertHeading: string;
+  bodyPreview: string;
+  targetOptions: Array<{ value: string; label: string }>;
+  headingOptions: Array<{ value: string; label: string }>;
+  onSaveMode: (mode: SaveMode) => void;
+  onTargetItemId: (id: string) => void;
+  onInsertHeading: (heading: string) => void;
+  onBodyPreview: (preview: string) => void;
+}): ReactNode {
+  const {
+    data,
+    saveMode,
+    targetItemId,
+    insertHeading,
+    bodyPreview,
+    targetOptions,
+    headingOptions,
+    onSaveMode,
+    onTargetItemId,
+    onInsertHeading,
+    onBodyPreview,
+  } = props;
+  const { t } = useTranslation();
+
+  return (
+    <section className="save-plan-editor">
+      <h3>{t("savePlanTitle")}</h3>
+      <Select
+        className="save-plan-mode"
+        label={t("savePlanMode")}
+        value={saveMode}
+        options={SAVE_MODES.map((mode) => ({
+          value: mode,
+          label:
+            mode === "merge" ? t("savePlanModeMerge")
+            : mode === "collection" ? t("savePlanModeCollection")
+            : t("savePlanModeNew"),
+        }))}
+        onChange={onSaveMode}
+      />
+      {saveMode === "merge" || saveMode === "collection" ? (
+        <Select
+          className="save-plan-target"
+          label={t("savePlanTarget")}
+          value={targetItemId}
+          options={targetOptions}
+          onChange={onTargetItemId}
+        />
+      ) : null}
+      {saveMode !== "new" && headingOptions.length ? (
+        <Select
+          className="save-plan-heading"
+          label={t("savePlanInsertHeading")}
+          value={insertHeading}
+          options={headingOptions}
+          onChange={onInsertHeading}
+        />
+      ) : saveMode !== "new" ? (
+        <div className="field">
+          <label>{t("savePlanInsertHeading")}</label>
+          <input type="text" value={insertHeading} onChange={(event) => onInsertHeading(event.target.value)} />
+        </div>
+      ) : null}
+      <div className="field">
+        <label>{t("savePlanBodyPreview")}</label>
+        <textarea rows={6} value={bodyPreview} onChange={(event) => onBodyPreview(event.target.value)} />
+      </div>
+      {data.savePlan?.reason ? <p className="save-plan-reason">{t("savePlanReason")}: {data.savePlan.reason}</p> : null}
+    </section>
+  );
+}
+
+function resolveInitialSavePlan(data: Classification): SavePlan | null {
+  if (data.savePlan) return data.savePlan;
+  const preview = data.mergePreview;
+  if (!preview) return null;
+  if (preview.targetItemId) {
+    return {
+      mode: "merge",
+      targetItemId: preview.targetItemId,
+      targetTitle: preview.targetTitle,
+      reason: "Legacy merge preview",
+      bodyPreview: preview.insertedContent,
+    };
+  }
+  if (preview.targetTitle && preview.insertedContent) {
+    return {
+      mode: "collection",
+      targetTitle: preview.targetTitle,
+      reason: "Legacy collection preview",
+      bodyPreview: preview.insertedContent,
+    };
+  }
+  return null;
+}
+
+function buildTargetOptions(
+  data: Classification,
+  mode: SaveMode,
+  noTargetLabel: string,
+): Array<{ value: string; label: string }> {
+  const options = [{ value: "", label: noTargetLabel }];
+  for (const item of data.relatedItems || []) {
+    if (item.type !== "note") continue;
+    if (mode === "collection" && !item.isCollection) continue;
+    const suffix = item.isCollection ? ` · ${mode === "collection" ? "collection" : item.reason}` : ` (${item.reason})`;
+    options.push({ value: item.id, label: `${item.title}${suffix}` });
+  }
+  return options;
+}
+
+function buildHeadingOptions(
+  data: Classification,
+  targetItemId: string,
+  current: string,
+): Array<{ value: string; label: string }> {
+  const target = (data.relatedItems || []).find((item) => item.id === targetItemId);
+  const headings = target?.insertHeadings || [];
+  const options = [{ value: "", label: "—" }];
+  for (const heading of headings) {
+    options.push({ value: heading, label: heading });
+  }
+  if (current && !headings.includes(current)) {
+    options.push({ value: current, label: current });
+  }
+  return options;
 }
 
 function issueFailed(result: ConfirmResult): boolean {
@@ -371,6 +543,7 @@ function DecisionFooter(props: {
   urgency: PriorityLevel;
   importance: PriorityLevel;
   writeIssue: boolean;
+  saveMode: SaveMode;
   mergeTargetId?: string;
   busy: boolean;
   canSave: boolean;
@@ -386,6 +559,7 @@ function DecisionFooter(props: {
     urgency,
     importance,
     writeIssue,
+    saveMode,
     mergeTargetId,
     busy,
     canSave,
@@ -405,6 +579,10 @@ function DecisionFooter(props: {
       })),
     [t],
   );
+  const confirmLabel =
+    mergeTargetId ? t("confirmMerge")
+    : saveMode === "collection" ? t("confirmCollection")
+    : t("confirm");
 
   return (
     <>
@@ -451,7 +629,7 @@ function DecisionFooter(props: {
         </button>
         {!canSave ? <span className="action-hint">{t("titleRequired")}</span> : null}
         <button type="button" className="primary" disabled={!canSave} onClick={() => void onConfirm()}>
-          {busy ? t("saving") : mergeTargetId ? t("confirmMerge") : t("confirm")}
+          {busy ? t("saving") : confirmLabel}
         </button>
       </div>
     </>

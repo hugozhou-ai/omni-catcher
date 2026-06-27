@@ -39,9 +39,11 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
   `~/.tutti/apps/installations/omni-catcher/.data-backup` if present.
 - `StorageService` serializes all index/file writes through an async `Mutex` (`apps/server/src/util.ts`).
 - Classification reads related notes/bookmarks from `index.jsonl` and their Markdown bodies before
-  calling the Agent. Confirming a note can append to an existing Markdown item when
-  `mergePreview.targetItemId` is present, or create a collection-style note when the
-  preview provides only a new target title.
+ calling the Agent. The Agent returns a `savePlan` (`new` | `merge` | `collection`) with optional
+ `targetItemId`, `insertHeading`, and `bodyPreview`; legacy `mergePreview` is kept in sync for
+ compatibility. Confirming a note can merge into an existing Markdown item (optionally under a
+ heading), create a collection-style note, or write a new file. `findRelatedItems` matches URL,
+ DOI, arXiv, title, tags, and collection-style notes.
 - Deleting a library item removes its Markdown file and rewrites `index.jsonl`; source
   of truth remains the Markdown directory, so `POST /api/rebuild-index` can recover the index.
 
@@ -71,7 +73,7 @@ calls, never exposes.
 - `GET /healthz`; `GET /` + `/assets/*` — UI.
 - `GET /api/context`, `GET /api/agent-providers`, `GET|POST /api/settings`.
 - `POST /api/capture` `{content, url?, source?}`; `GET /api/captures`, `GET /api/captures/:id`.
-- `POST /api/captures/:id/confirm` `{intent?, edits?, writeIssue?}`, `POST /api/captures/:id/cancel`, `POST /api/captures/:id/reject`.
+- `POST /api/captures/:id/confirm` `{intent?, edits?: {title?, tags?, urgency?, importance?, saveMode?, targetItemId?, insertHeading?, bodyPreview?}, writeIssue?}`, `POST /api/captures/:id/cancel`, `POST /api/captures/:id/reject`.
 - `GET /api/items[?type=]`, `GET /api/items/:id`, `PATCH /api/items/:id` (todo meta), `PATCH /api/items/:id/content` `{body, title?, tags?}` (note/bookmark body), `PATCH /api/items/:id/todo-task`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.
 - `POST /tutti/cli/:command` — CLI handlers (receive the `tutti.app.cli.invoke.v1` envelope; params in `input`).
 - `POST /tutti/references/list` + `POST /tutti/references/search` — `@omni-catcher` file references. Each response is `{items, nextCursor}` where every item is a tagged wrapper `{type:"reference", reference:{kind:"file", location:{type:"app-data-relative", path}}}` (a bare file reference is silently dropped by the daemon).

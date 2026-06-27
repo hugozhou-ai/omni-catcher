@@ -63,10 +63,7 @@ There is no chat-style conversation UI — each capture is a single round trip:
 1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
 2. **Processing** — a quote of what you sent, spinner, latest Agent activity, and a **Stop** action that cancels classification and restores the original input.
 3. **Review** — one **decision card** on the same screen: intent pills, editable title/tags, Agent summary, confirm or discard.
-   Related saved notes/bookmarks are included in the Agent prompt. When a pasted paper or
-   article matches an existing item, the card proposes a merge target instead of creating
-   another duplicate note; when a collection-style target is suggested, confirmation can
-   create that summary note for future related captures.
+   Related saved notes/bookmarks are included in the Agent prompt. The decision card shows an AI **save plan** (`new`, `merge`, or `collection`) with target document, optional insert heading, and editable Markdown preview. When a pasted paper or article matches an existing item, merge is suggested instead of creating a duplicate; collection mode creates or extends reading-summary notes.
 4. **Done** — returns to idle with an empty input.
 
 If the Agent is unavailable, the card falls back to rule-based classification and shows a short “needs review” notice; you still pick the intent manually.

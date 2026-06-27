@@ -98,11 +98,7 @@ function pickRichestDataDir(dirs) {
 
 function listCandidateDataDirs(workspaceId, appId) {
   return [
-    ...new Set([
-      stableBackupDir(appId),
-      ...installationDataDirs(appId),
-      legacyDataDir(workspaceId, appId),
-    ]),
+    ...new Set([...installationDataDirs(appId), legacyDataDir(workspaceId, appId)]),
   ];
 }
 
@@ -115,6 +111,8 @@ function restoreDataDir(sourceDir, targetDir) {
 function persistStableBackup(appId, sourceDir) {
   if (!sourceDir || dataDirScore(sourceDir) === 0) return;
   const target = stableBackupDir(appId);
+  if (resolve(sourceDir) === resolve(target)) return;
+  mkdirSync(dirname(target), { recursive: true });
   rmSync(target, { recursive: true, force: true });
   cpSync(sourceDir, target, { recursive: true });
   console.log(`• persisted stable backup -> ${target}`);

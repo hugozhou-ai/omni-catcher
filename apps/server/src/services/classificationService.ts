@@ -11,6 +11,10 @@ import type {
 } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { extractUrls, firstNonemptyLine } from "../util.js";
+import {
+  normalizeSavePlan,
+  syncMergePreviewFromSavePlan,
+} from "../savePlanUtil.js";
 import type { ITuttiCliService } from "./tuttiCliService.js";
 
 export interface IClassificationService {
@@ -112,8 +116,10 @@ export class ClassificationService implements IClassificationService {
     const tasks = Array.isArray(parsed.extractedTasks) ? (parsed.extractedTasks as unknown[]).map(String) : [];
     const tags = Array.isArray(parsed.tags) ? (parsed.tags as unknown[]).map(String) : [];
     const alternatives = normalizeAlternatives(parsed.alternatives);
-    const items = normalizeMixedItems(parsed.items);
+    const items = normalizeMixedItems(parsed.items, relatedItems);
     const mergePreview = normalizeMergePreview(parsed.mergePreview, relatedItems);
+    const savePlan = normalizeSavePlan(parsed.savePlan, relatedItems, mergePreview);
+    const effectiveMergePreview = savePlan ? syncMergePreviewFromSavePlan(savePlan) : mergePreview;
     const upgrade = (parsed.todoUpgrade as Record<string, unknown>) || {};
     return {
       primaryIntent: intent,
@@ -126,7 +132,8 @@ export class ClassificationService implements IClassificationService {
       extractedTasks: tasks.map((t) => t.trim()).filter(Boolean),
       items,
       relatedItems,
-      mergePreview,
+      savePlan,
+      mergePreview: effectiveMergePreview,
       todoUpgrade: {
         agentCompletable: Boolean(upgrade.agentCompletable),
         suggestedIssueTitle: String(upgrade.suggestedIssueTitle || "").trim(),
@@ -149,7 +156,7 @@ function normalizeAlternatives(value: unknown): Classification["alternatives"] {
   return alternatives.filter((item) => item.reason).slice(0, 4);
 }
 
-function normalizeMixedItems(value: unknown): MixedItem[] {
+function normalizeMixedItems(value: unknown, relatedItems: RelatedItem[] = []): MixedItem[] {
   if (!Array.isArray(value)) return [];
   const items: MixedItem[] = [];
   for (const item of value) {
@@ -163,6 +170,8 @@ function normalizeMixedItems(value: unknown): MixedItem[] {
     const tags = Array.isArray(raw.tags)
       ? raw.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 5)
       : undefined;
+    const mergePreview = normalizeMergePreview(raw.mergePreview, relatedItems);
+    const savePlan = normalizeSavePlan(raw.savePlan, relatedItems, mergePreview);
     items.push({
       type,
       title: String(raw.title || "").trim() || undefined,
@@ -170,6 +179,7 @@ function normalizeMixedItems(value: unknown): MixedItem[] {
       url: String(raw.url || "").trim() || undefined,
       tags,
       tasks,
+      savePlan,
     });
   }
   return items.slice(0, 12);
@@ -188,7 +198,7 @@ function normalizeMergePreview(value: unknown, relatedItems: RelatedItem[]): Cla
   const existingContent = String(raw.existingContent || "").trim();
   const insertedContent = String(raw.insertedContent || "").trim();
   if (!existingContent && !insertedContent) return null;
-  const target = relatedItems.find((item) => item.id === rawTargetItemId);
+  const target = relatedItems.find((item) => item.id === rawTargetItemId && item.type === "note");
   return {
     targetItemId: target?.id || undefined,
     targetTitle: String(raw.targetTitle || target?.title || "").trim(),
@@ -210,6 +220,8 @@ function formatRelatedItemsForPrompt(relatedItems: RelatedItem[]): string {
         item.tags.length ? `- tags: ${item.tags.join(", ")}` : "",
         `- path: ${item.path}`,
         `- match: ${item.reason} (${item.score})`,
+        item.isCollection ? "- collection: yes" : "",
+        item.insertHeadings?.length ? `- headings: ${item.insertHeadings.join(" | ")}` : "",
         item.excerpt ? `- excerpt: ${item.excerpt}` : "",
       ]
         .filter(Boolean)

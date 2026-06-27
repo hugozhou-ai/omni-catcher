@@ -12,6 +12,7 @@ Output STRICT JSON only. No prose, no markdown fences, no explanation. The JSON 
   "extractedUrls": ["https://..."],
   "extractedTasks": ["task one", "task two"],
   "items": [],
+  "savePlan": null,
   "mergePreview": null,
   "todoUpgrade": { "agentCompletable": false, "suggestedIssueTitle": "" }
 }
@@ -25,7 +26,7 @@ Rules:
 - "todo": actionable tasks ("buy milk", "finish the report", numbered action lists).
 - If the capture asks to create, save, summarize, organize, merge, or maintain a note/document/reading summary/knowledge base/paper collection, classify it as "note" even when it says "help me", "please", "create", "organize", "directly do it", "帮我", "请", "新建", "整理", "汇总", or "直接帮我". For these note-creation or note-organization requests, set "extractedTasks" to [] and "todoUpgrade.agentCompletable" to false.
 - Use "todo" only when the thing to save is itself a task/reminder/checklist or future work to track. If Omni Catcher can satisfy the request by saving or updating a note/bookmark now, prefer "note" or "bookmark" over "todo".
-- "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tags": [], "tasks": [] }.
+- "mixed": clearly contains more than one of the above. When "mixed", fill "items" with one object per sub-item: { "type": "note|bookmark|todo", "title": "", "summary": "", "url": "", "tags": [], "tasks": [], "savePlan": null }.
 - When the capture contains multiple URLs, inspect every URL in "URL context" and decide per URL. If the URLs form one coherent article/paper/tool roundup, save as one "note" with a summary organized by link. If they are independent tools/resources, classify as "mixed" and create one bookmark item per URL. Do not ignore later URLs.
 - For bookmark items, generate useful topical tags such as product category, use case, technology, or domain. Avoid generic tags like "link" or "website".
 - Respond in the same language as the captured content for title/tags.
@@ -35,11 +36,18 @@ Rules:
 - "extractedTasks" only for todo-like content; otherwise [].
 - "extractedUrls" lists every URL found; otherwise [].
 - "todoUpgrade.agentCompletable" is true only when a todo could plausibly be completed by an autonomous coding/research agent (e.g. "look up the X API docs", "draft a script"). Set "suggestedIssueTitle" to a short imperative title in that case.
-- Always inspect "Related saved items" before deciding whether to create a new note. If the capture is the same paper/article/resource as a related item, or should clearly be appended to an existing collection note, set "mergePreview" instead of creating an unrelated standalone note.
-- For repeated papers/articles with the same title, URL, DOI, arXiv id, or unmistakably identical subject, set mergePreview.targetItemId to the related item id so confirmation updates that note rather than creating a duplicate.
-- When a new paper/article belongs with prior paper/article notes and there is an existing collection or summary document in related items, set mergePreview.targetItemId to that collection. If there is no collection yet, use a clear targetTitle such as "Paper Reading Summary" or "论文阅读汇总" and make insertedContent a concise section that can become the first aggregated entry.
-- When the user asks to create a collection-style note from existing notes or papers but "Related saved items" is empty, still classify as "note"; do not invent extracted tasks. Use a collection-style title and summary based on the request, with "mergePreview": null.
-- "mergePreview" is null unless you have enough related-item context for a merge/update suggestion. When present, use { "targetItemId": "related item id when available", "targetTitle": "", "existingContent": "", "insertedContent": "" }.
+- Always inspect "Related saved items" before deciding how to save. Prefer "savePlan" over "mergePreview". Set "mergePreview" to null when "savePlan" is present.
+- For articles/papers: produce a structured "bodyPreview" with summary bullets, key points, and source links. Prefer merging into an existing reading summary or same-topic document when a related collection note exists.
+- For tool websites saved as bookmark: "bodyPreview" should capture purpose, use cases, and the link in concise Markdown.
+- For todos: extract checklist items in "extractedTasks"; infer urgency/importance via tags when obvious (e.g. "urgent", "important").
+- "savePlan" describes how Omni Catcher should write the content on confirm:
+  - mode "new": create a standalone file; bodyPreview is the Markdown body to write (excluding frontmatter).
+  - mode "merge": append/update an existing note; set targetItemId from related items; optional insertHeading names the section to insert under; bodyPreview is the Markdown fragment to insert.
+  - mode "collection": create a new collection-style note when no target exists yet, or merge into targetItemId when a collection already exists; targetTitle names the collection; bodyPreview is the first structured entry.
+- For repeated papers/articles with the same title, URL, DOI, arXiv id, or unmistakably identical subject, set savePlan.mode to "merge" and savePlan.targetItemId to the related item id.
+- When a new paper/article belongs with prior notes and there is an existing collection in related items (isCollection: true), merge into it with an appropriate insertHeading when provided in related item headings.
+- When no collection exists yet but the content belongs in one, use savePlan.mode "collection" with a clear targetTitle such as "Paper Reading Summary" or "论文阅读汇总".
+- When savePlan is null, Omni Catcher creates a normal new item from title/summary.
 - Keep "tags" to at most 5 entries.
 
 Related saved items:

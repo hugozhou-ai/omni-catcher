@@ -8,9 +8,12 @@ import type {
   ConfirmResult,
   Intent,
   Item,
+  MixedItem,
+  SavePlan,
 } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
 import { captureId, nowIso } from "../util.js";
+import { resolveEffectiveSavePlan, withDeterministicSavePlan } from "../savePlanUtil.js";
 import type { IStorageService } from "./storageService.js";
 import { INTENT_DIRS } from "./storageService.js";
 import type { IClassificationService } from "./classificationService.js";
@@ -69,7 +72,6 @@ export class CaptureService implements ICaptureService {
     };
     await this.storage.writeCapture(capture);
     this.activeRuns.set(capture.id, { canceled: false });
-    // Fire-and-forget background classification; UI polls for the result.
     void this.classify(capture.id);
     return capture;
   }
@@ -164,7 +166,7 @@ export class CaptureService implements ICaptureService {
         if (this.isCanceled(id)) return;
         capture = (await this.storage.readCapture(id)) || capture;
         if (!capture || this.isCanceled(id)) return;
-        capture.classification = withDeterministicMergePreview(
+        capture.classification = withDeterministicSavePlan(
           this.classification.normalize(parsed, capture.content, relatedItems),
         );
         capture.agentSessionId = outcome.sessionId;
@@ -180,6 +182,7 @@ export class CaptureService implements ICaptureService {
             provider: outcome.provider,
             intent: capture.classification.primaryIntent,
             confidence: capture.classification.confidence,
+            saveMode: capture.classification.savePlan?.mode || "",
           })}`,
         );
       } catch (error) {
@@ -194,7 +197,7 @@ export class CaptureService implements ICaptureService {
         capture = (await this.storage.readCapture(id)) || capture;
         capture.progress = "fallback";
         const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
-        capture.classification = withDeterministicMergePreview(
+        capture.classification = withDeterministicSavePlan(
           this.classification.normalize(
             fallbackRaw,
             capture.content,
@@ -254,47 +257,22 @@ export class CaptureService implements ICaptureService {
     const written: Item[] = [];
     if (intent === "mixed" && classification.items.length) {
       for (let index = 0; index < classification.items.length; index += 1) {
-        const raw = classification.items[index]!;
-        const subIntent = normalizeIntent(raw.type) || "note";
-        const effective = subIntent === "mixed" ? "note" : subIntent;
-        const subClass = {
-          ...classification,
-          title: raw.title || classification.title,
-          summary: raw.summary || "",
-          tags: mergeTags(raw.tags, edits.tags || classification.tags),
-          extractedUrls: raw.url ? [raw.url] : [],
-          extractedTasks: Array.isArray(raw.tasks) ? raw.tasks : [],
-        };
-        const splitEdits: ConfirmEdits = {
-          tags: mergeTags(raw.tags, edits.tags),
-          ...(effective === "todo" ? { urgency: edits.urgency, importance: edits.importance } : {}),
-        };
-        const subContent = raw.summary || raw.url || capture.content;
         written.push(
-          await this.storage.writeItem(effective, subClass, subContent, capture, splitEdits, String(index + 1)),
+          await this.writeMixedItem(
+            classification.items[index]!,
+            classification,
+            capture,
+            edits,
+            String(index + 1),
+          ),
         );
       }
       if (!written.length) {
-        written.push(await this.storage.writeItem("note", classification, capture.content, capture, edits));
+        written.push(await this.writeBySavePlan("note", classification, capture, edits));
       }
     } else {
       const effective = (intent in INTENT_DIRS ? intent : "note") as Intent;
-      const mergeTargetId = effective === "note" ? classification.mergePreview?.targetItemId : undefined;
-      if (mergeTargetId) {
-        written.push(await this.storage.mergeIntoItem(mergeTargetId, classification, capture.content, capture, edits));
-      } else if (effective === "note" && shouldCreateMergePreviewNote(classification)) {
-        written.push(
-          await this.storage.writeItem(
-            "note",
-            classificationForMergePreviewNote(classification),
-            mergePreviewNoteContent(classification, capture.content),
-            capture,
-            edits,
-          ),
-        );
-      } else {
-        written.push(await this.storage.writeItem(effective, classification, capture.content, capture, edits));
-      }
+      written.push(await this.writeBySavePlan(effective, classification, capture, edits));
     }
     let issue = null;
     if (writeIssue && intent === "todo") {
@@ -306,44 +284,84 @@ export class CaptureService implements ICaptureService {
     await this.storage.deleteCapture(id);
     return { items: written, issue };
   }
+
+  private async writeMixedItem(
+    raw: MixedItem,
+    classification: Classification,
+    capture: Capture,
+    edits: ConfirmEdits,
+    suffix: string,
+  ): Promise<Item> {
+    const subIntent = normalizeIntent(raw.type) || "note";
+    const effective = subIntent === "mixed" ? "note" : subIntent;
+    const subClass: Classification = {
+      ...classification,
+      title: raw.title || classification.title,
+      summary: raw.summary || "",
+      tags: mergeTags(raw.tags, edits.tags || classification.tags),
+      extractedUrls: raw.url ? [raw.url] : [],
+      extractedTasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+      savePlan: raw.savePlan || null,
+    };
+    const splitEdits: ConfirmEdits = {
+      ...edits,
+      tags: mergeTags(raw.tags, edits.tags),
+      bodyPreview: raw.savePlan?.bodyPreview || edits.bodyPreview,
+      saveMode: raw.savePlan?.mode || edits.saveMode,
+      targetItemId: raw.savePlan?.targetItemId || edits.targetItemId,
+      insertHeading: raw.savePlan?.insertHeading || edits.insertHeading,
+      ...(effective === "todo" ? { urgency: edits.urgency, importance: edits.importance } : {}),
+    };
+    const subContent = raw.summary || raw.url || capture.content;
+    return this.writeBySavePlan(effective, subClass, { ...capture, content: subContent }, splitEdits, suffix);
+  }
+
+  private async writeBySavePlan(
+    intent: Intent,
+    classification: Classification,
+    capture: Capture,
+    edits: ConfirmEdits,
+    suffix = "",
+  ): Promise<Item> {
+    const plan = resolveEffectiveSavePlan(classification, edits, intent);
+    const planEdits: ConfirmEdits = {
+      ...edits,
+      bodyPreview: plan?.bodyPreview || edits.bodyPreview,
+      insertHeading: plan?.insertHeading || edits.insertHeading,
+      targetItemId: plan?.targetItemId || edits.targetItemId,
+      saveMode: plan?.mode || edits.saveMode,
+    };
+    const enrichedClass =
+      plan?.bodyPreview ?
+        { ...classification, savePlan: plan }
+      : classification;
+
+    if (intent === "note" && plan?.mode === "merge" && plan.targetItemId) {
+      return this.storage.mergeIntoItem(plan.targetItemId, enrichedClass, capture.content, capture, planEdits);
+    }
+    if (intent === "note" && plan?.mode === "collection") {
+      if (plan.targetItemId) {
+        return this.storage.mergeIntoItem(plan.targetItemId, enrichedClass, capture.content, capture, planEdits);
+      }
+      const collectionClass: Classification = {
+        ...enrichedClass,
+        title: edits.title?.trim() || plan.targetTitle || enrichedClass.title,
+        summary: enrichedClass.summary || plan.bodyPreview,
+        savePlan: plan,
+      };
+      const body = plan.bodyPreview || collectionNoteContent(plan, capture.content);
+      return this.storage.writeItem("note", collectionClass, body, capture, planEdits, suffix);
+    }
+    return this.storage.writeItem(intent, enrichedClass, capture.content, capture, planEdits, suffix);
+  }
 }
 
-function shouldCreateMergePreviewNote(classification: Classification): boolean {
-  const preview = classification.mergePreview;
-  return Boolean(preview && !preview.targetItemId && preview.targetTitle && preview.insertedContent);
-}
-
-function classificationForMergePreviewNote(classification: Classification): Classification {
-  const preview = classification.mergePreview;
-  if (!preview || !preview.targetTitle) return classification;
-  return {
-    ...classification,
-    title: preview.targetTitle,
-    summary: classification.summary || preview.insertedContent,
-  };
-}
-
-function mergePreviewNoteContent(classification: Classification, content: string): string {
-  const preview = classification.mergePreview;
-  if (!preview) return content;
-  return [preview.existingContent, preview.insertedContent || content].filter(Boolean).join("\n\n").trim();
-}
-
-function withDeterministicMergePreview(classification: Classification): Classification {
-  if (classification.mergePreview?.targetItemId || classification.primaryIntent !== "note") return classification;
-  const exact = (classification.relatedItems || []).find(
-    (item) => item.type === "note" && (item.reason === "same-url" || item.reason === "same-title"),
-  );
-  if (!exact) return classification;
-  return {
-    ...classification,
-    mergePreview: {
-      targetItemId: exact.id,
-      targetTitle: exact.title,
-      existingContent: exact.excerpt || exact.summary || exact.title,
-      insertedContent: classification.summary || classification.title,
-    },
-  };
+function collectionNoteContent(plan: SavePlan, content: string): string {
+  const parts = [plan.bodyPreview].filter(Boolean);
+  if (!plan.bodyPreview.includes(content.trim()) && content.trim()) {
+    parts.push(`## Original\n${content.trim()}`);
+  }
+  return parts.join("\n\n").trim();
 }
 
 function normalizeIntent(value: unknown): Intent | "" {

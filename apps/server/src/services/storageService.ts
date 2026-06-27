@@ -17,6 +17,7 @@ import type {
 import type { AppConfig } from "../config.js";
 import { migrateDataDirIfNeeded } from "../dataMigration.js";
 import { Mutex, extractUrls, nowIso, slugify, todayStamp } from "../util.js";
+import { insertAtHeading } from "../savePlanUtil.js";
 import { ruleTasks } from "./classificationService.js";
 
 export const INTENT_DIRS: Record<Intent, string> = {
@@ -213,7 +214,10 @@ export class StorageService implements IStorageService {
     const text = content.trim();
     if (!text) return [];
     const urls = extractUrls(text).map(normalizeUrlForCompare);
+    const dois = extractDois(text);
+    const arxivIds = extractArxivIds(text);
     const terms = significantTerms(text);
+    const contentTags = extractHashTags(text);
     const items = await this.readIndex();
     const related: RelatedItem[] = [];
     for (const item of items) {
@@ -224,16 +228,50 @@ export class StorageService implements IStorageService {
       } catch {
         /* keep metadata-only comparison */
       }
+      const bodyStart = markdown.indexOf("\n---\n", 4);
+      const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown;
       const haystack = [item.title, item.summary || "", item.type, (item.tags || []).join(" "), markdown]
         .join("\n")
         .toLowerCase();
       const itemUrls = extractUrls(markdown).map(normalizeUrlForCompare);
+      const itemDois = extractDois(markdown);
+      const itemArxiv = extractArxivIds(markdown);
       const exactUrl = urls.length > 0 && urls.some((url) => itemUrls.includes(url));
+      const exactDoi = dois.length > 0 && dois.some((doi) => itemDois.includes(doi));
+      const exactArxiv = arxivIds.length > 0 && arxivIds.some((id) => itemArxiv.includes(id));
       const itemTitle = item.title.toLowerCase();
       const titleInContent = itemTitle.length >= 12 && text.toLowerCase().includes(itemTitle);
+      const titleMatch =
+        itemTitle.length >= 8 &&
+        terms.some((term) => term.length >= 8 && (itemTitle.includes(term) || term.includes(itemTitle.slice(0, 20))));
+      const tagHits = (item.tags || []).filter((tag) =>
+        contentTags.includes(tag.toLowerCase()) || terms.includes(tag.toLowerCase()),
+      );
       const termHits = terms.filter((term) => haystack.includes(term));
-      const score = (exactUrl ? 100 : 0) + (titleInContent ? 40 : 0) + termHits.length * 8;
+      const isCollection = looksLikeCollectionNote(item.title, item.tags || [], body);
+      let score =
+        (exactUrl ? 100 : 0) +
+        (exactDoi ? 95 : 0) +
+        (exactArxiv ? 95 : 0) +
+        (titleInContent ? 40 : 0) +
+        (titleMatch ? 28 : 0) +
+        tagHits.length * 12 +
+        termHits.length * 8 +
+        (isCollection ? 10 : 0);
       if (score < 16) continue;
+      const reason = exactUrl
+        ? "same-url"
+        : exactDoi
+          ? "same-doi"
+          : exactArxiv
+            ? "same-arxiv"
+            : titleInContent || titleMatch
+              ? "same-title"
+              : tagHits.length
+                ? "tag-match"
+                : isCollection
+                  ? "collection-candidate"
+                  : "shared-terms";
       related.push({
         id: item.id,
         type: item.type,
@@ -242,8 +280,10 @@ export class StorageService implements IStorageService {
         path: item.path,
         tags: item.tags || [],
         score,
-        reason: exactUrl ? "same-url" : titleInContent ? "same-title" : "shared-terms",
+        reason,
         excerpt: excerptMarkdown(markdown),
+        insertHeadings: extractMarkdownHeadings(body).slice(0, 12),
+        isCollection,
       });
     }
     return related.sort((a, b) => b.score - a.score).slice(0, limit);
@@ -355,13 +395,16 @@ export class StorageService implements IStorageService {
   ): Promise<Item> {
     const existing = await this.findItem(id);
     if (!existing) throw new Error(`item ${id} was not found`);
+    if (existing.type !== "note") throw new Error(`item ${id} is not a note and cannot be merged into`);
     const filePath = join(this.dataDir, existing.path);
     const markdown = await readFile(filePath, "utf-8");
     const meta = parseFrontmatter(markdown);
     const effective = applyEdits(classification, edits);
     const bodyStart = markdown.indexOf("\n---\n", 4);
     const body = bodyStart >= 0 ? markdown.slice(bodyStart + 5).trimEnd() : markdown.trimEnd();
-    const incomingBody = buildBody(existing.type, effective, content).trim();
+    const bodyPreview = edits.bodyPreview?.trim();
+    const incomingBody = bodyPreview || buildBody(existing.type, effective, content, edits).trim();
+    const insertHeading = edits.insertHeading?.trim();
     const alreadyCaptured = isAlreadyCaptured(markdown, content, effective);
     const confirmedAt = nowIso();
     const nextMeta: Record<string, unknown> = {
@@ -372,7 +415,11 @@ export class StorageService implements IStorageService {
     };
     if (capture.agentSessionId) nextMeta.agentSessionId = capture.agentSessionId;
     if (capture.agentProvider) nextMeta.agentProvider = capture.agentProvider;
-    const nextBody = alreadyCaptured ? body : `${body}\n\n## Captured ${confirmedAt.slice(0, 10)}\n\n${incomingBody}`;
+    const nextBody = alreadyCaptured
+      ? body
+      : insertHeading
+        ? insertAtHeading(body, insertHeading, incomingBody)
+        : `${body}\n\n## Captured ${confirmedAt.slice(0, 10)}\n\n${incomingBody}`;
     const nextMarkdown = buildFrontmatter(nextMeta) + "\n\n" + nextBody.trim() + "\n";
     const nextItem: Item = {
       ...existing,
@@ -443,7 +490,7 @@ export class StorageService implements IStorageService {
     if (intent === "todo") meta.todoProgress = "todo";
     if (capture.agentSessionId) meta.agentSessionId = capture.agentSessionId;
     if (capture.agentProvider) meta.agentProvider = capture.agentProvider;
-    const document = buildFrontmatter(meta) + "\n\n" + buildBody(intent, effective, content);
+    const document = buildFrontmatter(meta) + "\n\n" + buildBody(intent, effective, content, edits);
     const entry: Item = {
       id: itemId,
       type: intent,
@@ -580,13 +627,25 @@ export function parseFrontmatter(text: string): Record<string, unknown> {
   return meta;
 }
 
-function buildBody(intent: Intent, classification: Classification, content: string): string {
-  if (intent === "bookmark") return bookmarkBody(classification, content);
-  if (intent === "todo") return todoBody(classification, content);
-  return noteBody(classification, content);
+function buildBody(intent: Intent, classification: Classification, content: string, edits?: ConfirmEdits): string {
+  const withPreview =
+    edits?.bodyPreview?.trim() ?
+      { ...classification, savePlan: { mode: "new" as const, reason: "", bodyPreview: edits.bodyPreview.trim() } }
+    : classification;
+  if (intent === "bookmark") return bookmarkBody(withPreview, content);
+  if (intent === "todo") return todoBody(withPreview, content);
+  return noteBody(withPreview, content);
 }
 
 function noteBody(classification: Classification, content: string): string {
+  const preview = classification.savePlan?.bodyPreview?.trim();
+  if (preview) {
+    const urls = classification.extractedUrls || [];
+    if (urls.length && !previewAlreadyHasSources(preview, urls)) {
+      return `${preview}\n\n## Source\n${urls.map((url) => `- ${url}`).join("\n")}\n`;
+    }
+    return `${preview}\n`;
+  }
   const parts: string[] = [];
   const summary = classification.summary || content.trim().slice(0, 400);
   if (summary) parts.push(summary);
@@ -594,6 +653,13 @@ function noteBody(classification: Classification, content: string): string {
   if (urls.length) parts.push("## Source\n" + urls.map((url) => `- ${url}`).join("\n"));
   parts.push("## Original\n" + content.trim());
   return parts.join("\n\n").trim() + "\n";
+}
+
+function previewAlreadyHasSources(preview: string, urls: string[]): boolean {
+  if (/^#{1,6}\s*source\b/im.test(preview) || /^#{1,6}\s*来源/m.test(preview)) return true;
+  const lower = preview.toLowerCase();
+  const covered = urls.filter((url) => lower.includes(url.toLowerCase()));
+  return covered.length >= Math.min(urls.length, 1);
 }
 
 function normalizeUrlForCompare(url: string): string {
@@ -641,6 +707,45 @@ function excerptMarkdown(markdown: string): string {
   return body.replace(/\s+/g, " ").trim().slice(0, 700);
 }
 
+function extractDois(text: string): string[] {
+  const matches = text.match(/\b10\.\d{4,9}\/[^\s"'<>]+/gi) || [];
+  return [...new Set(matches.map((doi) => doi.toLowerCase().replace(/[.,;)\]]+$/, "")))];
+}
+
+function extractArxivIds(text: string): string[] {
+  const ids: string[] = [];
+  const urlMatches = text.match(/arxiv\.org\/(?:abs|pdf)\/(\d{4}\.\d{4,5}(?:v\d+)?)/gi) || [];
+  for (const match of urlMatches) {
+    const id = match.split("/").pop()?.replace(/\.pdf$/i, "");
+    if (id) ids.push(id.toLowerCase());
+  }
+  const bareMatches = text.match(/\barxiv:(\d{4}\.\d{4,5}(?:v\d+)?)\b/gi) || [];
+  for (const match of bareMatches) {
+    ids.push(match.split(":")[1]!.toLowerCase());
+  }
+  return [...new Set(ids)];
+}
+
+function extractHashTags(text: string): string[] {
+  return [...new Set((text.match(/#([\p{L}\p{N}_-]{2,})/gu) || []).map((tag) => tag.slice(1).toLowerCase()))];
+}
+
+function extractMarkdownHeadings(body: string): string[] {
+  const headings: string[] = [];
+  for (const line of body.split("\n")) {
+    const match = line.match(/^#{1,6}\s+(.+?)\s*$/);
+    if (match) headings.push(match[1]!.trim());
+  }
+  return headings;
+}
+
+function looksLikeCollectionNote(title: string, tags: string[], body: string): boolean {
+  const blob = [title, tags.join(" "), body.slice(0, 1200)].join(" ").toLowerCase();
+  return /汇总|合集|阅读笔记|reading summary|paper reading|toolbox|tool collection|knowledge base|资料库|collection/.test(
+    blob,
+  );
+}
+
 function mergeStringLists(left: unknown[], right: unknown[]): string[] {
   const result: string[] = [];
   for (const value of [...left, ...right]) {
@@ -661,6 +766,8 @@ function isAlreadyCaptured(markdown: string, content: string, classification: Cl
 }
 
 function bookmarkBody(classification: Classification, content: string): string {
+  const preview = classification.savePlan?.bodyPreview?.trim();
+  if (preview) return `${preview}\n`;
   const urls = classification.extractedUrls?.length ? classification.extractedUrls : extractUrls(content);
   if (!urls.length) return content.trim() + "\n";
   return (

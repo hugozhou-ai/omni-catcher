@@ -126,11 +126,14 @@ export function resolveEffectiveSavePlan(
   const bodyPreview = edits.bodyPreview?.trim() || base?.bodyPreview || classification.summary || "";
   if (mode === "merge") {
     const target = resolveNoteTarget(classification.relatedItems || [], targetItemId || "");
-    if (!target?.id) return base?.mode === "merge" ? base : { mode: "new", reason: "Create new item", bodyPreview };
+    const resolvedTargetId = target?.id || targetItemId || undefined;
+    if (!resolvedTargetId) {
+      return { mode: "new", reason: "Create new item", bodyPreview };
+    }
     return {
       mode: "merge",
-      targetItemId: target.id,
-      targetTitle: target.title || targetTitle,
+      targetItemId: resolvedTargetId,
+      targetTitle: target?.title || targetTitle,
       insertHeading,
       reason: base?.reason || "Merge into existing document",
       bodyPreview,

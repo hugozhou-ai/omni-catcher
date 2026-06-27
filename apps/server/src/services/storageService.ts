@@ -405,7 +405,17 @@ export class StorageService implements IStorageService {
     const bodyPreview = edits.bodyPreview?.trim();
     const incomingBody = bodyPreview || buildBody(existing.type, effective, content, edits).trim();
     const insertHeading = edits.insertHeading?.trim();
-    const alreadyCaptured = isAlreadyCaptured(markdown, content, effective);
+    const skipBodyInsert = shouldSkipMergeBody(markdown, content, effective, incomingBody);
+    console.info(
+      `capture-merge ${JSON.stringify({
+        event: skipBodyInsert ? "skip-body" : "insert-body",
+        targetItemId: id,
+        targetPath: existing.path,
+        captureId: capture.id,
+        insertHeading: insertHeading || "",
+        incomingLength: incomingBody.length,
+      })}`,
+    );
     const confirmedAt = nowIso();
     const nextMeta: Record<string, unknown> = {
       ...meta,
@@ -415,14 +425,19 @@ export class StorageService implements IStorageService {
     };
     if (capture.agentSessionId) nextMeta.agentSessionId = capture.agentSessionId;
     if (capture.agentProvider) nextMeta.agentProvider = capture.agentProvider;
-    const nextBody = alreadyCaptured
+    const nextBody = skipBodyInsert
       ? body
       : insertHeading
         ? insertAtHeading(body, insertHeading, incomingBody)
         : `${body}\n\n## Captured ${confirmedAt.slice(0, 10)}\n\n${incomingBody}`;
+    const nextSummary = skipBodyInsert
+      ? String(meta.summary || existing.summary || "")
+      : incomingBody.replace(/\s+/g, " ").trim().slice(0, 900) || String(meta.summary || "");
+    if (nextSummary) nextMeta.summary = nextSummary;
     const nextMarkdown = buildFrontmatter(nextMeta) + "\n\n" + nextBody.trim() + "\n";
     const nextItem: Item = {
       ...existing,
+      summary: nextSummary || existing.summary,
       tags: Array.isArray(nextMeta.tags) ? (nextMeta.tags as string[]) : existing.tags,
       confirmedAt,
     };
@@ -753,6 +768,23 @@ function mergeStringLists(left: unknown[], right: unknown[]): string[] {
     if (text && !result.includes(text)) result.push(text);
   }
   return result.slice(0, 12);
+}
+
+function shouldSkipMergeBody(
+  markdown: string,
+  content: string,
+  classification: Classification,
+  incomingBody: string,
+): boolean {
+  const incoming = incomingBody.trim();
+  if (!incoming) return true;
+  const bodyStart = markdown.indexOf("\n---\n", 4);
+  const body = (bodyStart >= 0 ? markdown.slice(bodyStart + 5) : markdown).trim();
+  if (incoming.length >= 32) {
+    const needle = incoming.slice(0, Math.min(incoming.length, 180));
+    return body.includes(needle);
+  }
+  return isAlreadyCaptured(markdown, content, classification);
 }
 
 function isAlreadyCaptured(markdown: string, content: string, classification: Classification): boolean {

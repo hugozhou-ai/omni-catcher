@@ -31,6 +31,7 @@ export interface ICaptureService {
 export const ICaptureService = createServiceIdentifier<ICaptureService>("captureService");
 
 const CLASSIFY_LOG_PREFIX = "capture-classify";
+const CONFIRM_LOG_PREFIX = "capture-confirm";
 
 interface ActiveRunState {
   canceled: boolean;
@@ -340,12 +341,56 @@ export class CaptureService implements ICaptureService {
         { ...classification, savePlan: plan }
       : classification;
 
+    this.log.info(
+      `${CONFIRM_LOG_PREFIX} ${JSON.stringify({
+        event: "plan",
+        captureId: capture.id,
+        intent,
+        mode: plan?.mode || "new",
+        targetItemId: plan?.targetItemId || "",
+        insertHeading: plan?.insertHeading || "",
+        bodyPreviewLength: plan?.bodyPreview?.length || 0,
+      })}`,
+    );
+
     if (intent === "note" && plan?.mode === "merge" && plan.targetItemId) {
-      return this.storage.mergeIntoItem(plan.targetItemId, enrichedClass, capture.content, capture, planEdits);
+      const item = await this.storage.mergeIntoItem(
+        plan.targetItemId,
+        enrichedClass,
+        capture.content,
+        capture,
+        planEdits,
+      );
+      this.log.info(
+        `${CONFIRM_LOG_PREFIX} ${JSON.stringify({
+          event: "merged",
+          captureId: capture.id,
+          targetItemId: plan.targetItemId,
+          resultItemId: item.id,
+          resultPath: item.path,
+        })}`,
+      );
+      return item;
     }
     if (intent === "note" && plan?.mode === "collection") {
       if (plan.targetItemId) {
-        return this.storage.mergeIntoItem(plan.targetItemId, enrichedClass, capture.content, capture, planEdits);
+        const item = await this.storage.mergeIntoItem(
+          plan.targetItemId,
+          enrichedClass,
+          capture.content,
+          capture,
+          planEdits,
+        );
+        this.log.info(
+          `${CONFIRM_LOG_PREFIX} ${JSON.stringify({
+            event: "collection-merged",
+            captureId: capture.id,
+            targetItemId: plan.targetItemId,
+            resultItemId: item.id,
+            resultPath: item.path,
+          })}`,
+        );
+        return item;
       }
       const collectionClass: Classification = {
         ...enrichedClass,

@@ -20,13 +20,23 @@ export const IReferenceService = createServiceIdentifier<IReferenceService>("ref
 export class ReferenceService implements IReferenceService {
   constructor(private readonly storage: IStorageService) {}
 
-  /** Global search: match query against the file's own display name only. */
+  /** Global search: match query against title, summary, tags, and Markdown body. */
   async search(request: ReferenceSearchRequest): Promise<ReferenceSearchResponse> {
     const query = (request.query || "").trim().toLowerCase();
     const limit = clampLimit(request.limit);
-    const items = (await this.fileReferences())
-      .filter((ref) => (query ? ref.displayName.toLowerCase().includes(query) : true))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    if (!query) {
+      const items = (await this.fileReferences())
+        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+        .slice(0, limit)
+        .map(wrapReference);
+      return { items, nextCursor: null };
+    }
+    const matches = await this.storage.searchItems(query);
+    const refs = await this.fileReferences();
+    const byPath = new Map(refs.map((ref) => [ref.location.path, ref]));
+    const items = matches
+      .map((item) => byPath.get(item.path))
+      .filter((ref): ref is ReferenceItem => Boolean(ref))
       .slice(0, limit)
       .map(wrapReference);
     return { items, nextCursor: null };
@@ -34,7 +44,6 @@ export class ReferenceService implements IReferenceService {
 
   /** Browse listing: flat (no groups), with optional per-level text filter. */
   async list(request: ReferenceListRequest): Promise<ReferenceSearchResponse> {
-    // This app exposes a flat file list, so nested groups are never returned.
     if ((request.parentGroupId || "").trim()) {
       return { items: [], nextCursor: null };
     }
@@ -58,13 +67,12 @@ export class ReferenceService implements IReferenceService {
         sizeBytes = stats.size;
         mtimeMs = Math.round(stats.mtimeMs);
       } catch {
-        // File missing on disk: skip so Tutti never points at a dead reference.
         continue;
       }
       refs.push({
         kind: "file",
         displayName: item.title || item.id,
-        description: item.type,
+        description: [item.type, item.summary || "", (item.tags || []).join(", ")].filter(Boolean).join(" · "),
         location: { type: "app-data-relative", path: item.path },
         sizeBytes,
         mtimeMs,

@@ -215,9 +215,25 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
           const id = String(input.id || "").trim();
           if (!id) throw new InvalidInput("id is required");
           const item = await storage.findItem(id);
-          if (item) return cliJson({ item });
+          if (item) {
+            const detail = await storage.readItem(id);
+            return cliJson({
+              item,
+              path: item.path,
+              markdownPath: item.path,
+              markdown: detail?.markdown || "",
+            });
+          }
           const capture = await storage.readCapture(id);
-          if (capture) return cliJson({ capture });
+          if (capture) {
+            const data = capture.classification || capture.rulePreview;
+            return cliJson({
+              capture,
+              savePlan: data.savePlan || null,
+              mergePreview: data.mergePreview || null,
+              relatedItems: data.relatedItems || [],
+            });
+          }
           throw new InvalidInput(`${id} was not found`);
         }
         case "pending": {

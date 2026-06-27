@@ -197,43 +197,44 @@ export function CaptureHome(): ReactNode {
         </div>
       </div>
 
-      {phase !== "idle" && submitted ? (
-        <blockquote className="capture-quote">{submitted}</blockquote>
-      ) : null}
+      <div className="capture-body">
+        {phase !== "idle" && submitted ? (
+          <blockquote className="capture-quote">{submitted}</blockquote>
+        ) : null}
 
-      {phase === "processing" ? (
-        <div className="capture-processing">
-          <div className="capture-processing-body">
-            <div className="capture-processing-header">
-              <div className="capture-processing-status">
-                <Spinner />
-                <p>{progressText(activeCapture?.progress, t)}</p>
+        {phase === "processing" ? (
+          <div className="capture-processing">
+            <div className="capture-processing-body">
+              <div className="capture-processing-header">
+                <div className="capture-processing-status">
+                  <Spinner />
+                  <p>{progressText(activeCapture?.progress, t)}</p>
+                </div>
+                <button
+                  type="button"
+                  className="capture-stop danger"
+                  disabled={canceling}
+                  onClick={() => void cancelClassification()}
+                >
+                  <Icon name="stop" />
+                  {canceling ? t("stoppingClassification") : t("stopClassification")}
+                </button>
               </div>
-              <button
-                type="button"
-                className="capture-stop danger"
-                disabled={canceling}
-                onClick={() => void cancelClassification()}
-              >
-                <Icon name="stop" />
-                {canceling ? t("stoppingClassification") : t("stopClassification")}
-              </button>
+              {agentActivity ? (
+                <div className="capture-agent-activity" aria-live="polite">
+                  {agentActivity}
+                </div>
+              ) : null}
             </div>
-            {agentActivity ? (
-              <div className="capture-agent-activity" aria-live="polite">
-                {agentActivity}
-              </div>
-            ) : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {phase === "review" && activeCapture ? (
-        <DecisionCard capture={activeCapture} onDone={reset} />
-      ) : null}
+        {phase === "review" && activeCapture ? (
+          <DecisionCard capture={activeCapture} onDone={reset} />
+        ) : null}
 
-      {phase === "idle" ? (
-        <div className="capture-sheet">
+        {phase === "idle" ? (
+          <div className="capture-sheet">
           <div className="capture-textarea-wrap">
             <textarea
               ref={textareaRef}
@@ -285,8 +286,9 @@ export function CaptureHome(): ReactNode {
               {t("captureButton")}
             </button>
           </div>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

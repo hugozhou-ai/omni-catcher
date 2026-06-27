@@ -225,8 +225,11 @@ select:focus {
 }
 
 .main-home {
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding-top: 20px;
+  padding-bottom: 40px;
 }
 
 .sidebar {
@@ -597,17 +600,28 @@ select:focus {
 
 .capture-home {
   width: min(1040px, 100%);
-  display: grid;
-  grid-template-columns: minmax(0, 2fr);
-  gap: 18px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 60px);
   margin: 0 auto;
+}
+
+.capture-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  min-height: 0;
+  width: 100%;
 }
 
 .capture-hero {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 80px;
+  flex-shrink: 0;
 }
 
 .capture-brand {

@@ -22,6 +22,7 @@ export interface IClassificationService {
   classifyPrompt(
     content: string,
     relatedItems?: RelatedItem[],
+    existingTags?: string[],
     onProgress?: (progress: CaptureProgress) => Promise<void>,
   ): Promise<string>;
   parseStrictJson(text: string): unknown;
@@ -83,11 +84,13 @@ export class ClassificationService implements IClassificationService {
   async classifyPrompt(
     content: string,
     relatedItems: RelatedItem[] = [],
+    existingTags: string[] = [],
     onProgress?: (progress: CaptureProgress) => Promise<void>,
   ): Promise<string> {
     const template = await readFile(resolve(this.config.promptsDir, "classify.md"), "utf-8");
     const enriched = await enrichContentForClassification(content, this.cli, this.log, onProgress);
     return template
+      .replace("{{EXISTING_TAGS}}", formatExistingTagsForPrompt(existingTags))
       .replace("{{EXISTING_ITEMS}}", formatRelatedItemsForPrompt(relatedItems))
       .replace("{{CONTENT}}", enriched);
   }
@@ -228,6 +231,11 @@ function formatRelatedItemsForPrompt(relatedItems: RelatedItem[]): string {
         .join("\n"),
     )
     .join("\n\n");
+}
+
+function formatExistingTagsForPrompt(tags: string[]): string {
+  if (!tags.length) return "No existing tags were found.";
+  return tags.map((tag) => `- ${tag}`).join("\n");
 }
 
 const MAX_BROWSER_URL_CONTEXTS = 3;

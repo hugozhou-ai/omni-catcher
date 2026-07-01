@@ -124,11 +124,17 @@ export class CaptureService implements ICaptureService {
         const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
         await this.updateProgress(id, "finding_related");
         if (this.isCanceled(id)) return;
-        const relatedItems = await this.storage.findRelatedItems(capture.content);
+        const [relatedItems, existingTags] = await Promise.all([
+          this.storage.findRelatedItems(capture.content),
+          this.storage.listItems().then(collectExistingTags),
+        ]);
         await this.updateProgress(id, "preparing_context");
         if (this.isCanceled(id)) return;
-        const prompt = await this.classification.classifyPrompt(capture.content, relatedItems, (progress) =>
-          this.updateProgress(id, progress),
+        const prompt = await this.classification.classifyPrompt(
+          capture.content,
+          relatedItems,
+          existingTags,
+          (progress) => this.updateProgress(id, progress),
         );
         if (this.isCanceled(id)) return;
         this.log.info(
@@ -138,6 +144,7 @@ export class CaptureService implements ICaptureService {
             contentLength: capture.content.length,
             promptLength: prompt.length,
             relatedCount: relatedItems.length,
+            existingTagCount: existingTags.length,
             preferredProvider: preferredProvider || "",
           })}`,
         );
@@ -428,6 +435,27 @@ function mergeTags(left: unknown, right: unknown): string[] {
     }
   }
   return result.slice(0, 5);
+}
+
+function collectExistingTags(items: Item[]): string[] {
+  const counts = new Map<string, { tag: string; count: number }>();
+  for (const item of items) {
+    for (const rawTag of item.tags || []) {
+      const tag = String(rawTag || "").trim();
+      if (!tag) continue;
+      const key = tag.toLowerCase();
+      const current = counts.get(key);
+      if (current) {
+        current.count += 1;
+      } else {
+        counts.set(key, { tag, count: 1 });
+      }
+    }
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+    .slice(0, 120)
+    .map((entry) => `"${entry.tag}" (used ${entry.count} times)`);
 }
 
 function progressActivityText(progress: CaptureProgress): string {

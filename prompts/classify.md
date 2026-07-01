@@ -30,6 +30,11 @@ Rules:
 - When the capture contains multiple URLs, inspect every URL in "URL context" and decide per URL. If the URLs form one coherent article/paper/tool roundup, save as one "note" with a summary organized by link. If they are independent tools/resources, classify as "mixed" and create one bookmark item per URL. Do not ignore later URLs.
 - For bookmark items, generate useful topical tags such as product category, use case, technology, or domain. Avoid generic tags like "link" or "website".
 - Respond in the same language as the captured content for title/tags.
+- Before writing any "tags" array, inspect "Existing tags" and reuse suitable tag text exactly as written inside quotes. Treat usage counts as popularity hints, not part of the tag.
+- Cluster similar tag ideas under an existing broader/canonical tag whenever possible. For example, do not split near-duplicates such as "ui design" vs "interface design", "product page" vs "landing page" when one existing tag already covers the idea, or overly narrow tags such as one component/page name when a stable category tag fits.
+- When no existing tag fits, still cluster similar small ideas into one new broader category instead of creating several fine-grained tags. Choose a canonical category that could cover future related captures, e.g. group "button copy", "cta", and "microcopy" under one tag such as "ux writing" or "conversion design" depending on the content.
+- Create a new tag only when no existing tag or close cluster represents the concept. New tags should be broad, stable, reusable categories rather than one-off details. Prefer 1-3 words, lowercase for English tags, and concise noun phrases.
+- If both a specific tag and a broader suitable existing tag could apply, prefer the broader existing tag unless the specific tag is clearly important for future retrieval. Do not output both a near-duplicate old tag and a new tag for the same concept.
 - If the captured content or readable page content is primarily English, "summary" MUST be bilingual with English first and Chinese second, using this exact shape: "English: ...\n中文：...". Keep both sides concise and semantically aligned. Apply the same bilingual rule to each mixed item summary when that sub-item is English.
 - For non-English content, write "summary" in the same language as the captured content unless the user explicitly asks otherwise.
 - "confidence" is between 0 and 1.
@@ -38,6 +43,7 @@ Rules:
 - "todoUpgrade.agentCompletable" is true only when a todo could plausibly be completed by an autonomous coding/research agent (e.g. "look up the X API docs", "draft a script"). Set "suggestedIssueTitle" to a short imperative title in that case.
 - Always inspect "Related saved items" before deciding how to save. Prefer "savePlan" over "mergePreview". Set "mergePreview" to null when "savePlan" is present.
 - For articles/papers: produce a structured "bodyPreview" with summary bullets, key points, and source links. Prefer merging into an existing reading summary or same-topic document when a related collection note exists.
+- If a note bodyPreview is based on primarily English source content, the bodyPreview MUST be bilingual. Write each substantive section with English first and Chinese second, keeping the Chinese as a faithful translation or concise counterpart of the English. Use clear Markdown labels such as "English:" and "中文：" for the top summary and for each key point; do not output an English-only note body for English sources.
 - For tool websites saved as bookmark: "bodyPreview" should capture purpose, use cases, and the link in concise Markdown.
 - For todos: extract checklist items in "extractedTasks"; infer urgency/importance via tags when obvious (e.g. "urgent", "important").
 - "savePlan" describes how Omni Catcher should write the content on confirm:
@@ -49,6 +55,11 @@ Rules:
 - When no collection exists yet but the content belongs in one, use savePlan.mode "collection" with a clear targetTitle such as "Paper Reading Summary" or "论文阅读汇总".
 - When savePlan is null, Omni Catcher creates a normal new item from title/summary.
 - Keep "tags" to at most 5 entries.
+
+Existing tags:
+---
+{{EXISTING_TAGS}}
+---
 
 Related saved items:
 ---

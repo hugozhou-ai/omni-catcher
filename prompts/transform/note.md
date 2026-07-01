@@ -7,7 +7,10 @@ Structure:
 - A "## Key points" section with concise bullet points.
 - If source URLs exist, a "## Source" section listing them.
 
-Write in the same language as the captured content.
+Language:
+- If the captured content is primarily English, write a bilingual note body with English first and Chinese second.
+- Keep the English and Chinese versions semantically aligned. Use clear Markdown labels such as "English:" and "中文：" for the top summary and each key point.
+- For non-English content, write in the same language as the captured content unless the user explicitly asks otherwise.
 
 Captured content:
 ---

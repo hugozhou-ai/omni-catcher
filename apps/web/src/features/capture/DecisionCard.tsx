@@ -122,6 +122,17 @@ export function DecisionCard(props: {
     }
   }
 
+  async function retry(): Promise<void> {
+    if (busy || capture.status !== "needs_review") return;
+    setBusy(true);
+    try {
+      await captureService.retry(capture.id);
+    } catch (error) {
+      showToast((error as Error).message);
+      setBusy(false);
+    }
+  }
+
   function openDetailByKeyboard(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -264,7 +275,9 @@ export function DecisionCard(props: {
           onImportance={setImportance}
           onWriteIssue={setWriteIssue}
           onReject={reject}
+          onRetry={retry}
           onConfirm={confirm}
+          canRetry={capture.status === "needs_review"}
         />
       </div>
     );
@@ -349,7 +362,9 @@ export function DecisionCard(props: {
         onImportance={setImportance}
         onWriteIssue={setWriteIssue}
         onReject={reject}
+        onRetry={retry}
         onConfirm={confirm}
+        canRetry={capture.status === "needs_review"}
       />
     </div>
   );
@@ -547,10 +562,12 @@ function DecisionFooter(props: {
   mergeTargetId?: string;
   busy: boolean;
   canSave: boolean;
+  canRetry: boolean;
   onUrgency: (urgency: PriorityLevel) => void;
   onImportance: (importance: PriorityLevel) => void;
   onWriteIssue: (writeIssue: boolean) => void;
   onReject: () => Promise<void>;
+  onRetry: () => Promise<void>;
   onConfirm: () => Promise<void>;
 }): ReactNode {
   const {
@@ -563,10 +580,12 @@ function DecisionFooter(props: {
     mergeTargetId,
     busy,
     canSave,
+    canRetry,
     onUrgency,
     onImportance,
     onWriteIssue,
     onReject,
+    onRetry,
     onConfirm,
   } = props;
   const { t } = useTranslation();
@@ -627,6 +646,11 @@ function DecisionFooter(props: {
         <button type="button" className="danger" disabled={busy} onClick={() => void onReject()}>
           {t("reject")}
         </button>
+        {canRetry ? (
+          <button type="button" disabled={busy} onClick={() => void onRetry()}>
+            {busy ? t("retryingClassification") : t("retryClassification")}
+          </button>
+        ) : null}
         {!canSave ? <span className="action-hint">{t("titleRequired")}</span> : null}
         <button type="button" className="primary" disabled={!canSave} onClick={() => void onConfirm()}>
           {busy ? t("saving") : confirmLabel}

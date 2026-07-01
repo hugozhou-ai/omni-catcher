@@ -25,6 +25,7 @@ export interface ICaptureService {
   list(): Promise<Capture[]>;
   read(id: string): Promise<Capture | null>;
   cancel(id: string): Promise<{ canceled: true; content: string }>;
+  retry(id: string): Promise<Capture>;
   confirm(id: string, intent: string | undefined, writeIssue: boolean, edits: ConfirmEdits): Promise<ConfirmResult>;
 }
 
@@ -115,6 +116,33 @@ export class CaptureService implements ICaptureService {
     return { canceled: true, content: capture.content };
   }
 
+  async retry(id: string): Promise<Capture> {
+    const capture = await this.storage.readCapture(id);
+    if (!capture) throw new Error(`capture ${id} was not found`);
+    if (capture.status === "classifying") return this.withTransientState(capture);
+
+    const next: Capture = {
+      ...capture,
+      status: "classifying",
+      classification: null,
+      agentSessionId: null,
+      agentProvider: null,
+      error: null,
+      progress: "preparing",
+    };
+    await this.storage.writeCapture(next);
+    this.activeRuns.set(id, { canceled: false, latestActivity: progressActivityText("preparing") });
+    this.log.info(
+      `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+        event: "retry",
+        id,
+        previousStatus: capture.status,
+      })}`,
+    );
+    void this.classify(id);
+    return this.withTransientState(next);
+  }
+
   private async classify(id: string): Promise<void> {
     let capture = await this.storage.readCapture(id);
     if (!capture) return;
@@ -146,6 +174,7 @@ export class CaptureService implements ICaptureService {
             relatedCount: relatedItems.length,
             existingTagCount: existingTags.length,
             preferredProvider: preferredProvider || "",
+            timeoutMs: this.config.classifyTimeoutMs,
           })}`,
         );
         await this.updateProgress(id, "calling_agent");
@@ -200,6 +229,9 @@ export class CaptureService implements ICaptureService {
             event: "failed",
             id,
             error: (error as Error).message,
+            sessionId: this.activeRuns.get(id)?.sessionId || "",
+            provider: this.activeRuns.get(id)?.provider || "",
+            timeoutMs: this.config.classifyTimeoutMs,
           })}`,
         );
         capture = (await this.storage.readCapture(id)) || capture;

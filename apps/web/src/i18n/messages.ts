@@ -23,6 +23,8 @@ export interface Messages {
   stopClassification: string;
   stoppingClassification: string;
   classificationStopped: string;
+  retryClassification: string;
+  retryingClassification: string;
   needsReview: string;
   classificationError: string;
   ruleBasedDecision: string;

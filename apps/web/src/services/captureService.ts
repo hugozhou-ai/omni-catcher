@@ -14,6 +14,7 @@ export interface ICaptureService {
   refresh(): Promise<boolean>;
   create(content: string): Promise<Capture>;
   cancel(id: string): Promise<{ content: string }>;
+  retry(id: string): Promise<Capture>;
   confirm(id: string, request: ConfirmRequest): Promise<ConfirmResult>;
   reject(id: string): Promise<void>;
   startPolling(): void;
@@ -46,6 +47,13 @@ export class WebCaptureService implements ICaptureService {
     const result = await this.api.post<{ canceled: true; content: string }>(`/api/captures/${id}/cancel`);
     await this.refresh();
     return { content: result.content || "" };
+  }
+
+  async retry(id: string): Promise<Capture> {
+    const result = await this.api.post<{ capture: Capture }>(`/api/captures/${id}/retry`);
+    await this.refresh();
+    this.startPolling();
+    return result.capture;
   }
 
   async confirm(id: string, request: ConfirmRequest): Promise<ConfirmResult> {

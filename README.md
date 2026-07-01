@@ -167,7 +167,9 @@ completed assistant turn). It runs on a background task; `POST /api/capture` ret
 immediately and the UI polls for the result and latest in-memory activity text. Processing
 captures can be canceled with `POST /api/captures/:id/cancel`, which cancels the active
 agent session when one exists, removes the pending capture, and returns the original
-content for retry. ACP providers (e.g. claude-code) keep the session open after a turn, so
+content for retry. Failed captures can be retried in place with
+`POST /api/captures/:id/retry`, which resets the capture to `classifying` and starts a new
+background classification run. ACP providers (e.g. claude-code) keep the session open after a turn, so
 completion is detected from the newest `completed` assistant message rather than the
 session status.
 

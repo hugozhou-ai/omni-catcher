@@ -19,6 +19,8 @@ export interface AppConfig {
 
 export const IAppConfig = createServiceIdentifier<AppConfig>("appConfig");
 
+const DEFAULT_CLASSIFY_TIMEOUT_MS = 180_000;
+
 export function loadConfig(): AppConfig {
   const serverDir = dirname(fileURLToPath(import.meta.url));
   // Packaged layout: <package>/server/server.js -> packageDir is <package>.
@@ -42,6 +44,6 @@ export function loadConfig(): AppConfig {
     workspaceId: process.env.TUTTI_WORKSPACE_ID || "dev",
     workspaceName: process.env.TUTTI_WORKSPACE_NAME || process.env.TUTTI_WORKSPACE_ID || "Dev",
     workspaceRoot: (process.env.TUTTI_WORKSPACE_ROOT || "").trim(),
-    classifyTimeoutMs: Number(process.env.OMNI_CLASSIFY_TIMEOUT_MS || 90_000),
+    classifyTimeoutMs: Number(process.env.OMNI_CLASSIFY_TIMEOUT_MS || DEFAULT_CLASSIFY_TIMEOUT_MS),
   };
 }

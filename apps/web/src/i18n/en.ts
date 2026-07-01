@@ -23,6 +23,8 @@ export const en: Messages = {
   stopClassification: "Stop",
   stoppingClassification: "Stopping...",
   classificationStopped: "Classification stopped",
+  retryClassification: "Retry",
+  retryingClassification: "Retrying...",
   needsReview: "Agent unavailable. Pick an intent manually.",
   classificationError: "Classification failed:",
   ruleBasedDecision: "Rule-based preview",

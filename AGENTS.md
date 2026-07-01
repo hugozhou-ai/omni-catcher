@@ -63,17 +63,18 @@ into API responses; it is not written to `inbox/<capId>.json`. `POST
 /api/captures/:id/cancel` cancels the active agent session when one exists, removes the
 pending capture, and returns the original content so the UI can restore the input. On
 agent failure/timeout the capture falls back to a rule-based classification with `status:
-needs_review`. Provider list comes from `agent providers` filtered to available `codex` /
-`claude-code` / `gemini`. The optional `todo` → issue upgrade (`IssueService`) calls
-`issue topic list` then `issue create`; `issue` is a reserved daemon scope this app only
-calls, never exposes.
+needs_review`; `POST /api/captures/:id/retry` resets that same capture to `classifying`
+and starts a new background classification run. Provider list comes from `agent providers`
+filtered to available `codex` / `claude-code` / `gemini`. The optional `todo` → issue
+upgrade (`IssueService`) calls `issue topic list` then `issue create`; `issue` is a
+reserved daemon scope this app only calls, never exposes.
 
 ## HTTP endpoints
 
 - `GET /healthz`; `GET /` + `/assets/*` — UI.
 - `GET /api/context`, `GET /api/agent-providers`, `GET|POST /api/settings`.
 - `POST /api/capture` `{content, url?, source?}`; `GET /api/captures`, `GET /api/captures/:id`.
-- `POST /api/captures/:id/confirm` `{intent?, edits?: {title?, tags?, urgency?, importance?, saveMode?, targetItemId?, insertHeading?, bodyPreview?}, writeIssue?}`, `POST /api/captures/:id/cancel`, `POST /api/captures/:id/reject`.
+- `POST /api/captures/:id/confirm` `{intent?, edits?: {title?, tags?, urgency?, importance?, saveMode?, targetItemId?, insertHeading?, bodyPreview?}, writeIssue?}`, `POST /api/captures/:id/cancel`, `POST /api/captures/:id/retry`, `POST /api/captures/:id/reject`.
 - `GET /api/items[?type=]`, `GET /api/items/:id`, `PATCH /api/items/:id` (todo meta), `PATCH /api/items/:id/content` `{body, title?, tags?}` (note/bookmark body), `PATCH /api/items/:id/todo-task`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.
 - `POST /tutti/cli/:command` — CLI handlers (receive the `tutti.app.cli.invoke.v1` envelope; params in `input`).
 - `POST /tutti/references/list` + `POST /tutti/references/search` — `@omni-catcher` file references. Each response is `{items, nextCursor}` where every item is a tagged wrapper `{type:"reference", reference:{kind:"file", location:{type:"app-data-relative", path}}}` (a bare file reference is silently dropped by the daemon).

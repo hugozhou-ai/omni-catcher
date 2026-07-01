@@ -23,6 +23,8 @@ export const zhCN: Messages = {
   stopClassification: "停止",
   stoppingClassification: "停止中……",
   classificationStopped: "已停止识别",
+  retryClassification: "重试",
+  retryingClassification: "重试中……",
   needsReview: "Agent 暂不可用，请手动选择意图。",
   classificationError: "识别失败：",
   ruleBasedDecision: "规则预览",

@@ -82,6 +82,15 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     return captures.cancel(request.params.id);
   });
 
+  app.post<{ Params: { id: string } }>("/api/captures/:id/retry", async (request, reply) => {
+    try {
+      const capture = await captures.retry(request.params.id);
+      return reply.code(202).send({ capture });
+    } catch (error) {
+      return reply.code(404).send({ error: (error as Error).message });
+    }
+  });
+
   app.post<{ Params: { id: string } }>("/api/captures/:id/reject", async (request) => {
     const existing = await storage.readCapture(request.params.id);
     await storage.deleteCapture(request.params.id);

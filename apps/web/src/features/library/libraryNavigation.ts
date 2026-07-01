@@ -7,7 +7,7 @@ export type LibrarySelection = {
   itemId: string | null;
 };
 
-export const LIBRARY_CATEGORIES: LibraryCategory[] = ["todo", "note", "bookmark"];
+export const LIBRARY_CATEGORIES: LibraryCategory[] = ["note", "todo", "bookmark"];
 
 export const DEFAULT_LIBRARY_SELECTION: LibrarySelection = {
   category: "note",

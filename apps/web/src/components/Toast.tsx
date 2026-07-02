@@ -17,7 +17,7 @@ export function Toast(): ReactNode {
   return (
     <div className={`toast ${visible ? "show" : ""}`} role="status" aria-live="polite">
       <span className="toast-icon">
-        <Icon name="check" />
+        <Icon name="checkMark" />
       </span>
       <span>{message?.text ?? ""}</span>
     </div>

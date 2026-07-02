@@ -440,29 +440,25 @@ function TodoCard(props: {
       }}
     >
       <div className="item-card-head">
-        <div className="item-card-type">
-          <Icon name="check" />
-          <span className={`progress-chip progress-${progress}`}>{t(progressKey(progress))}</span>
-        </div>
-        <div className="item-card-actions">
+        <div className="item-card-title-block">
+          <h3 className="item-card-title">{item.title || item.id}</h3>
           <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
-          {onDelete ? (
-            <button
-              type="button"
-              className="item-card-delete"
-              title={t("deleteItem")}
-              aria-label={t("deleteItem")}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDelete();
-              }}
-            >
-              <Icon name="trash" />
-            </button>
-          ) : null}
         </div>
+        {onDelete ? (
+          <button
+            type="button"
+            className="item-card-delete"
+            title={t("deleteItem")}
+            aria-label={t("deleteItem")}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Icon name="trash" />
+          </button>
+        ) : null}
       </div>
-      <h3 className="item-card-title">{item.title || item.id}</h3>
       {expanded ? (
         <>
           {item.summary ? <p className="item-card-summary">{item.summary}</p> : null}

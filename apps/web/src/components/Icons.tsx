@@ -111,11 +111,11 @@ function pathFor(name: IconName): ReactNode {
     case "trash":
       return (
         <>
-          <path d="M6 8h12" />
-          <path d="M10 8V6h4v2" />
-          <path d="M8 8l2 12h4l2-12" />
-          <path d="M10 12v6" />
-          <path d="M14 12v6" />
+          <path d="M7 8h10v11H7V8Z" />
+          <path d="M5 8h14" />
+          <path d="M9 8V5h6v3" />
+          <path d="M10 11v5" />
+          <path d="M14 11v5" />
         </>
       );
     default:

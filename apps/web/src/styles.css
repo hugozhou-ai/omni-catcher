@@ -1581,33 +1581,31 @@ select:focus {
   box-shadow: var(--shadow);
 }
 
-.item-card-head,
-.item-card-type {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .item-card-head {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
 }
 
-.item-card-actions {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.item-card-title-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .item-card-delete {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
   display: grid;
   place-items: center;
   padding: 0;
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 7px;
   color: var(--muted);
-  background: transparent;
+  background: var(--surface);
 }
 
 .item-card-delete:hover {
@@ -1617,16 +1615,8 @@ select:focus {
 }
 
 .item-card-delete .icon {
-  width: 16px;
-  height: 16px;
-}
-
-.item-card-type {
-  min-width: 0;
-}
-
-.item-card-type .icon {
-  color: var(--muted);
+  width: 15px;
+  height: 15px;
 }
 
 .item-card-title {

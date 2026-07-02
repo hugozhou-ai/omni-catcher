@@ -427,10 +427,6 @@ select:focus {
   gap: 2px;
 }
 
-.sidebar-category-row.without-toggle {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .sidebar-category {
   width: 100%;
   height: 40px;
@@ -461,7 +457,7 @@ select:focus {
   border: none;
   border-radius: 0;
   background: transparent;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
   box-shadow: none;
   transform: none;
 }
@@ -480,6 +476,13 @@ select:focus {
   border: none;
   box-shadow: none;
   transform: none;
+}
+
+.sidebar-category-toggle:hover:not(:disabled),
+.sidebar-category-toggle:active:not(:disabled),
+.sidebar-category-toggle:focus,
+.sidebar-category-toggle:focus-visible {
+  color: var(--muted);
 }
 
 .sidebar-category.active {

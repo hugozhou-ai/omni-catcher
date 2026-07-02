@@ -82,6 +82,7 @@ export function CaptureHome(): ReactNode {
   const [providers, setProviders] = useState<string[]>([]);
   const [providerHint, setProviderHint] = useState("");
   const [preferred, setPreferred] = useState("");
+  const providerChoiceVersion = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 24, y: 18 });
 
@@ -96,11 +97,14 @@ export function CaptureHome(): ReactNode {
       : "review";
 
   useEffect(() => {
+    const choiceVersion = providerChoiceVersion.current;
     void Promise.all([workspace.getProviders(), workspace.getPreferredProvider()]).then(
       ([result, saved]) => {
         const names = result.providers.map((p) => p.provider);
         setProviders(names);
-        setPreferred(names.includes(saved) ? saved : "");
+        if (providerChoiceVersion.current === choiceVersion) {
+          setPreferred(names.includes(saved) ? saved : "");
+        }
         setProviderHint(result.available && names.length ? "" : t("providerNone"));
       },
     );
@@ -124,8 +128,9 @@ export function CaptureHome(): ReactNode {
   }
 
   function onProviderChange(value: string): void {
+    providerChoiceVersion.current += 1;
     setPreferred(value);
-    void workspace.setPreferredProvider(value);
+    void workspace.setPreferredProvider(value).catch((error) => showToast((error as Error).message));
   }
 
   async function submit(): Promise<void> {

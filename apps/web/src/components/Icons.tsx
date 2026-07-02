@@ -32,7 +32,12 @@ export function Icon(props: { name: IconName; className?: string }): ReactNode {
 function pathFor(name: IconName): ReactNode {
   switch (name) {
     case "bookmark":
-      return <path d="M8 4h8v16l-4-2-4 2V4Z" />;
+      return (
+        <>
+          <path d="M4 4h16v16H4V4Z" />
+          <path d="M8 7h8v8l-4-2-4 2V7Z" />
+        </>
+      );
     case "capture":
       return (
         <>
@@ -47,8 +52,8 @@ function pathFor(name: IconName): ReactNode {
     case "check":
       return (
         <>
-          <path d="M6 12l4 4 8-8" />
-          <path d="M6 4h12v16H6V4Z" />
+          <path d="M4 4h16v16H4V4Z" />
+          <path d="m8 12 2.8 2.8L16.5 9" />
         </>
       );
     case "chevronLeft":
@@ -58,10 +63,10 @@ function pathFor(name: IconName): ReactNode {
     case "document":
       return (
         <>
-          <path d="M8 4h6l4 4v12H8V4Z" />
-          <path d="M14 4v4h4" />
-          <path d="M10 12h6" />
-          <path d="M10 14h4" />
+          <path d="M4 4h12l4 4v12H4V4Z" />
+          <path d="M16 4v4h4" />
+          <path d="M8 12h8" />
+          <path d="M8 15h6" />
         </>
       );
     case "grid":

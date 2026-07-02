@@ -121,11 +121,14 @@ export function Sidebar(props: {
             const categoryActive = librarySelection.category === category;
             const categoryOpen = expandedCategories[category];
             const categoryItems = itemsByCategory[category];
+            const categoryActionable = category === "todo" || category === "bookmark";
             return (
               <div key={category} className="sidebar-library-group">
                 <button
                   type="button"
-                  className={`sidebar-category ${categoryActive ? "active" : ""}`}
+                  className={`sidebar-category ${categoryActionable ? "sidebar-category-actionable" : ""} ${
+                    categoryActive ? "active" : ""
+                  }`}
                   aria-expanded={categoryOpen}
                   onClick={() => toggleCategory(category)}
                 >

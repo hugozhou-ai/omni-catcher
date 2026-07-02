@@ -1,7 +1,7 @@
 import type { Messages } from "./messages.js";
 
 export const zhCN: Messages = {
-  appName: "Omni Catcher 智能便签",
+  appName: "Omni Catcher",
   captureTitle: "捕获",
   capturePlaceholder: "粘贴任意内容：文章、链接或待办……",
   captureButton: "捕获",
@@ -72,7 +72,7 @@ export const zhCN: Messages = {
   intentBookmark: "书签",
   intentTodo: "待办",
   intentMixed: "混合",
-  navHome: "捕获",
+  navHome: "收集",
   navLibrary: "资料库",
   emptySearch: "没有匹配的已保存内容。",
   librarySelectItem: "从左侧侧边栏选择一篇内容。",

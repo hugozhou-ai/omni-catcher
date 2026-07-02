@@ -398,7 +398,7 @@ select:focus {
 .sidebar-library {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -414,7 +414,7 @@ select:focus {
 .sidebar-library-group {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
 }
 
 .sidebar-category {
@@ -422,7 +422,7 @@ select:focus {
   height: 40px;
   min-height: 40px;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 12px;
+  grid-template-columns: 18px minmax(0, 1fr) 12px;
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 10px;
@@ -451,6 +451,30 @@ select:focus {
 
 .sidebar-category.active {
   color: var(--text);
+}
+
+.sidebar-category-actionable {
+  border: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-muted) 78%, var(--surface));
+}
+
+.sidebar-category-actionable:hover:not(:disabled),
+.sidebar-category-actionable:active:not(:disabled),
+.sidebar-category-actionable:focus,
+.sidebar-category-actionable:focus-visible {
+  color: var(--text);
+  background: var(--surface);
+  border: 1.5px solid color-mix(in srgb, var(--border-strong) 72%, var(--border));
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-category-actionable.active,
+.sidebar-category-actionable.active:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface));
+  border: 1.5px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-category.active .sidebar-category-label {
@@ -484,8 +508,8 @@ select:focus {
 }
 
 .sidebar-category .icon {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .sidebar-category-chevron {

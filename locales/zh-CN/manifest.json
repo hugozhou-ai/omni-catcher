@@ -1,5 +1,5 @@
 {
-  "name": "Omni Catcher 智能便签",
+  "name": "Omni Catcher",
   "description": "捕获任意内容，由 Agent 识别意图，确认后保存为本地 Markdown 笔记、书签与待办。",
   "tags": ["笔记", "捕获", "工作区"]
 }

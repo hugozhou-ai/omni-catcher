@@ -36,6 +36,7 @@ export class LocalizationService implements ILocalizationService {
   }
 
   private browserLocale(): string {
+    if (document.documentElement.lang) return document.documentElement.lang;
     return window.navigator.languages[0] || window.navigator.language || DEFAULT_LOCALE;
   }
 }

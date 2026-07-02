@@ -38,7 +38,7 @@ jobs:
       release_tag_prefix: omni-catcher-v
       release_bump: ${{ inputs.release_bump }}
       create_release_tag: ${{ !inputs.catalog_only }}
-      pnpm_version: 10.11.0
+      pnpm_version: 10.33.0
       aws_region: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_AWS_REGION || vars.TUTTI_APP_RELEASES_AWS_REGION }}
       aws_role_arn: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_AWS_ROLE_ARN || vars.TUTTI_APP_RELEASES_AWS_ROLE_ARN }}
       s3_bucket: ${{ vars.TUTTI_APP_RELEASES_PRODUCTION_S3_BUCKET || vars.TUTTI_APP_RELEASES_S3_BUCKET }}

@@ -44,9 +44,9 @@ export function Sidebar(props: {
   const library = useService(ILibraryService);
   const items = useStore(library.items);
   const [expandedCategories, setExpandedCategories] = useState<Record<LibraryCategory, boolean>>({
-    todo: true,
-    note: true,
-    bookmark: true,
+    todo: false,
+    note: false,
+    bookmark: false,
   });
 
   useEffect(() => {
@@ -73,6 +73,11 @@ export function Sidebar(props: {
 
   function toggleCategoryOpen(category: LibraryCategory): void {
     setExpandedCategories((current) => ({ ...current, [category]: !current[category] }));
+  }
+
+  function handleCategoryClick(category: LibraryCategory): void {
+    navigateCategory(category);
+    if (category === "note") toggleCategoryOpen(category);
   }
 
   return (
@@ -124,26 +129,30 @@ export function Sidebar(props: {
             const categoryActive = librarySelection.category === category;
             const categoryOpen = expandedCategories[category];
             const categoryItems = itemsByCategory[category];
+            const categoryHasToggle = category !== "note";
             return (
               <div key={category} className="sidebar-library-group">
-                <div className="sidebar-category-row">
+                <div className={`sidebar-category-row ${categoryHasToggle ? "" : "without-toggle"}`}>
                   <button
                     type="button"
                     className={`sidebar-category ${categoryActive ? "active" : ""}`}
-                    onClick={() => navigateCategory(category)}
+                    aria-expanded={categoryHasToggle ? undefined : categoryOpen}
+                    onClick={() => handleCategoryClick(category)}
                   >
                     <Icon name={CATEGORY_ICONS[category]} />
                     <span className="sidebar-category-label">{t(CATEGORY_LABELS[category])}</span>
                   </button>
-                  <button
-                    type="button"
-                    className="sidebar-category-toggle"
-                    aria-label={`${categoryOpen ? t("collapse") : t("expand")} ${t(CATEGORY_LABELS[category])}`}
-                    aria-expanded={categoryOpen}
-                    onClick={() => toggleCategoryOpen(category)}
-                  >
-                    <Icon name="chevronRight" className={`sidebar-category-chevron ${categoryOpen ? "open" : ""}`} />
-                  </button>
+                  {categoryHasToggle ? (
+                    <button
+                      type="button"
+                      className="sidebar-category-toggle"
+                      aria-label={`${categoryOpen ? t("collapse") : t("expand")} ${t(CATEGORY_LABELS[category])}`}
+                      aria-expanded={categoryOpen}
+                      onClick={() => toggleCategoryOpen(category)}
+                    >
+                      <Icon name="chevronRight" className={`sidebar-category-chevron ${categoryOpen ? "open" : ""}`} />
+                    </button>
+                  ) : null}
                 </div>
                 {categoryOpen ? (
                   <div className="sidebar-library-items">

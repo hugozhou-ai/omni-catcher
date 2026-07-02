@@ -427,6 +427,10 @@ select:focus {
   gap: 2px;
 }
 
+.sidebar-category-row.without-toggle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .sidebar-category {
   width: 100%;
   height: 40px;

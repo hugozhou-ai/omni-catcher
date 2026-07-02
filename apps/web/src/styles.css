@@ -36,27 +36,57 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: light;
-    --page-bg: #ffffff;
-    --bg: #ffffff;
-    --surface: #ffffff;
-    --surface-raised: #ffffff;
-    --surface-muted: #f7f9fc;
-    --border: rgb(60 60 60 / 10%);
-    --border-strong: color-mix(in srgb, var(--accent) 32%, var(--border));
-    --text: #30343b;
-    --muted: rgb(48 52 58 / 70%);
-    --quiet: rgb(48 52 58 / 42%);
-    --accent: #ffbb00;
-    --accent-hover: #e6a800;
-    --accent-soft: #fff4cc;
-    --danger: #b42318;
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --page-bg: #101114;
+    --bg: #101114;
+    --surface: #17191d;
+    --surface-raised: #1d2026;
+    --surface-muted: #22262d;
+    --border: rgb(255 255 255 / 12%);
+    --border-strong: color-mix(in srgb, var(--accent) 38%, var(--border));
+    --text: #edf0f5;
+    --muted: rgb(237 240 245 / 68%);
+    --quiet: rgb(237 240 245 / 42%);
+    --accent: #ffbf24;
+    --accent-hover: #ffd56a;
+    --accent-soft: rgb(255 191 36 / 16%);
+    --accent-text: #ffe3a0;
+    --danger: #ff7168;
     --note: var(--accent);
     --bookmark: var(--accent);
     --todo: var(--accent);
     --mixed: var(--accent);
+    --shadow-sm: 0 12px 24px rgb(0 0 0 / 22%);
+    --shadow: 0 20px 56px rgb(0 0 0 / 30%);
+    --shadow-strong: 0 26px 72px rgb(0 0 0 / 38%);
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #101114;
+  --bg: #101114;
+  --surface: #17191d;
+  --surface-raised: #1d2026;
+  --surface-muted: #22262d;
+  --border: rgb(255 255 255 / 12%);
+  --border-strong: color-mix(in srgb, var(--accent) 38%, var(--border));
+  --text: #edf0f5;
+  --muted: rgb(237 240 245 / 68%);
+  --quiet: rgb(237 240 245 / 42%);
+  --accent: #ffbf24;
+  --accent-hover: #ffd56a;
+  --accent-soft: rgb(255 191 36 / 16%);
+  --accent-text: #ffe3a0;
+  --danger: #ff7168;
+  --note: var(--accent);
+  --bookmark: var(--accent);
+  --todo: var(--accent);
+  --mixed: var(--accent);
+  --shadow-sm: 0 12px 24px rgb(0 0 0 / 22%);
+  --shadow: 0 20px 56px rgb(0 0 0 / 30%);
+  --shadow-strong: 0 26px 72px rgb(0 0 0 / 38%);
 }
 
 * {

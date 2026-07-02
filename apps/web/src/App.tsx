@@ -12,9 +12,11 @@ import { useService } from "./platform/react.js";
 import { ILocalizationService } from "./services/localizationService.js";
 import { ICaptureService } from "./services/captureService.js";
 import { ILibraryService } from "./services/libraryService.js";
+import { IThemeService } from "./services/themeService.js";
 
 export function App(): ReactNode {
   const localization = useService(ILocalizationService);
+  const theme = useService(IThemeService);
   const captureService = useService(ICaptureService);
   const library = useService(ILibraryService);
   const [view, setView] = useState<AppView>("capture");
@@ -23,10 +25,11 @@ export function App(): ReactNode {
 
   useEffect(() => {
     void localization.init();
+    void theme.init();
     void captureService.refresh().then((classifying) => {
       if (classifying) captureService.startPolling();
     });
-  }, [localization, captureService]);
+  }, [localization, theme, captureService]);
 
   useEffect(() => {
     if (view !== "library") return;

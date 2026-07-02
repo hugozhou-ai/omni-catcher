@@ -3,6 +3,8 @@ import MDEditor from "@uiw/react-md-editor";
 import "@uiw/react-md-editor/markdown-editor.css";
 import "@uiw/react-markdown-preview/markdown.css";
 import { useTranslation } from "../hooks/useTranslation.js";
+import { useService, useStore } from "../platform/react.js";
+import { IThemeService } from "../services/themeService.js";
 
 export function MarkdownEditor(props: {
   value: string;
@@ -11,10 +13,12 @@ export function MarkdownEditor(props: {
 }): ReactNode {
   const { value, onChange, disabled = false } = props;
   const { t } = useTranslation();
+  const themeService = useService(IThemeService);
+  const theme = useStore(themeService.theme);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
 
   return (
-    <div className="markdown-editor-shell" data-color-mode="light">
+    <div className="markdown-editor-shell" data-color-mode={theme}>
       <div className="markdown-editor-toolbar">
         <button
           type="button"

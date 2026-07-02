@@ -605,6 +605,11 @@ select:focus {
   padding-bottom: 48px;
 }
 
+.library-content.list-mode {
+  flex: 0 0 auto;
+  min-height: auto;
+}
+
 .library-empty-state {
   flex: 1;
   display: grid;

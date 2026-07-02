@@ -259,7 +259,7 @@ export function TodoPanel(props: {
   }
 
   return (
-    <section className="library-content">
+    <section className="library-content list-mode">
       <header className="collection-header">
         <div className="collection-toolbar">
           <label className="search-box grow">

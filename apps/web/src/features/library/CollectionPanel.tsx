@@ -183,7 +183,7 @@ export function CollectionPanel(props: {
   }
 
   return (
-    <section className="library-content">
+    <section className="library-content list-mode">
       <header className="collection-header">
         <label className="search-box collection-search">
           <Icon name="search" />

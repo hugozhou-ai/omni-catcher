@@ -150,7 +150,7 @@ export function Sidebar(props: {
                       aria-expanded={categoryOpen}
                       onClick={() => toggleCategoryOpen(category)}
                     >
-                      <Icon name="chevronRight" className={`sidebar-category-chevron ${categoryOpen ? "open" : ""}`} />
+                      <Icon name="chevronRight" className={`icon sidebar-category-chevron ${categoryOpen ? "open" : ""}`} />
                     </button>
                   ) : null}
                 </div>

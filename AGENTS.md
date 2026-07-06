@@ -52,9 +52,9 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
 There is no lightweight LLM endpoint; classification uses a full agent session
 (`AgentService` in `apps/server/src/services/agentService.ts`):
 
-1. `agent start --provider <p> --cwd $TUTTI_APP_DATA_DIR --title ... --prompt <classify.md> --visible` → `session.id`
+1. provider-specific start (`codex start`, `claude start`, or `gemini start`) with `--cwd $TUTTI_APP_DATA_DIR --title ... --prompt <classify.md> --visible` → `session.id`
 2. poll `agent get --session-id <id>` until a terminal status
-3. `agent session messages --session-id <id> --limit 80` → final assistant text → strict JSON
+3. `agent session-summary --session-id <id> --limit 80` → final assistant text → strict JSON
 
 `CaptureService.create` returns immediately and runs classification on a background task; the
 UI polls `GET /api/captures`. While a capture is running, `CaptureService` keeps only the

@@ -35,6 +35,11 @@ const DEFAULT_PROVIDER = "codex";
 const DEFAULT_MODELS: Record<string, string> = {
   codex: "gpt-5.5",
 };
+const START_COMMANDS: Record<string, string> = {
+  "claude-code": "claude",
+  codex: "codex",
+  gemini: "gemini",
+};
 
 export function normalizeProvider(value: unknown): string {
   const v = String(value || "").trim().toLowerCase();
@@ -105,11 +110,11 @@ export class AgentService implements IAgentService {
     let provider = await this.resolveProvider(preferred);
     const model = (await this.resolveModel(provider)) || DEFAULT_MODELS[provider] || "";
     if (!model) throw new Error(`no model available for provider ${provider}`);
+    const command = START_COMMANDS[provider];
+    if (!command) throw new Error(`unsupported agent provider ${provider}`);
     const args = [
-      "agent",
+      command,
       "start",
-      "--provider",
-      provider,
       "--prompt",
       prompt,
       "--title",

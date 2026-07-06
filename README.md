@@ -95,7 +95,7 @@ omni-catcher/
 │   │       ├── http/routes.ts   # /api, /tutti/cli, /tutti/references
 │   │       └── services/        # domain services
 │   │           ├── tuttiCliService.ts      # $TUTTI_CLI invocation
-│   │           ├── agentService.ts         # agent start/poll/session-summary
+│   │           ├── agentService.ts         # provider start/poll/session-summary
 │   │           ├── classificationService.ts# rule preview + JSON parse
 │   │           ├── storageService.ts       # markdown + index.jsonl (+ mutex)
 │   │           ├── captureService.ts       # capture lifecycle orchestration
@@ -162,8 +162,9 @@ Open http://localhost:5173 to exercise the sidebar + capture flow locally. Witho
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
 There is no lightweight LLM endpoint in Tutti, so classification uses a full agent session
-(`agent start` → poll `agent get` for failures → read `agent session-summary` for the
-completed assistant turn). It runs on a background task; `POST /api/capture` returns
+(`codex start`, `claude start`, or `gemini start` → poll `agent get` for failures →
+read `agent session-summary` for the completed assistant turn). It runs on a
+background task; `POST /api/capture` returns
 immediately and the UI polls for the result and latest in-memory activity text. Processing
 captures can be canceled with `POST /api/captures/:id/cancel`, which cancels the active
 agent session when one exists, removes the pending capture, and returns the original

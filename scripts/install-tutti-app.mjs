@@ -48,16 +48,20 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
+const tuttiStateDir = process.env.TUTTI_STATE_DIR?.trim()
+  ? resolve(process.env.TUTTI_STATE_DIR.trim())
+  : resolve(homedir(), ".tutti");
+
 function legacyDataDir(workspaceId, appId) {
-  return resolve(homedir(), ".tutti/apps/workspaces", workspaceId, appId, "data");
+  return resolve(tuttiStateDir, "apps/workspaces", workspaceId, appId, "data");
 }
 
 function stableBackupDir(appId) {
-  return resolve(homedir(), ".tutti/apps/installations", appId, ".data-backup");
+  return resolve(tuttiStateDir, "apps/installations", appId, ".data-backup");
 }
 
 function installationDataDirs(appId) {
-  const rootDir = resolve(homedir(), ".tutti/apps/installations", appId);
+  const rootDir = resolve(tuttiStateDir, "apps/installations", appId);
   if (!existsSync(rootDir)) return [];
   return readdirSync(rootDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
@@ -180,7 +184,7 @@ console.log("• zipping package (preserving exec bits)");
 rmSync(zipPath, { force: true });
 execFileSync("zip", ["-r", "-X", "-q", zipPath, "."], { cwd: pkgDir, stdio: "inherit" });
 
-const listenerPath = resolve(homedir(), ".tutti/run/tuttid.listener.json");
+const listenerPath = resolve(tuttiStateDir, "run/tuttid.listener.json");
 if (!existsSync(listenerPath)) {
   throw new Error("Tutti daemon endpoint not found; start the Tutti desktop app first.");
 }

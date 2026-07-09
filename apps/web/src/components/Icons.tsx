@@ -9,11 +9,15 @@ export type IconName =
   | "chevronRight"
   | "document"
   | "grid"
+  | "info"
   | "list"
+  | "menu"
   | "search"
+  | "settings"
   | "spark"
   | "stop"
-  | "trash";
+  | "trash"
+  | "warning";
 
 export function Icon(props: { name: IconName; className?: string }): ReactNode {
   const { name, className = "icon" } = props;
@@ -81,6 +85,14 @@ function pathFor(name: IconName): ReactNode {
           <path d="M14 14h6v6h-6v-6Z" />
         </>
       );
+    case "info":
+      return (
+        <>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 10v5" />
+          <path d="M12 7.5h.01" />
+        </>
+      );
     case "list":
       return (
         <>
@@ -92,11 +104,33 @@ function pathFor(name: IconName): ReactNode {
           <path d="M4 18h2" />
         </>
       );
+    case "menu":
+      return (
+        <>
+          <path d="M5 7h14" />
+          <path d="M5 12h14" />
+          <path d="M5 17h14" />
+        </>
+      );
     case "search":
       return (
         <>
           <circle cx="10" cy="10" r="6" />
           <path d="m14 14 6 6" />
+        </>
+      );
+    case "settings":
+      return (
+        <>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 3v2" />
+          <path d="M12 19v2" />
+          <path d="M3 12h2" />
+          <path d="M19 12h2" />
+          <path d="m5.6 5.6 1.4 1.4" />
+          <path d="m17 17 1.4 1.4" />
+          <path d="m18.4 5.6-1.4 1.4" />
+          <path d="m7 17-1.4 1.4" />
         </>
       );
     case "spark":
@@ -116,6 +150,14 @@ function pathFor(name: IconName): ReactNode {
           <path d="M9 8V5h6v3" />
           <path d="M10 11v5" />
           <path d="M14 11v5" />
+        </>
+      );
+    case "warning":
+      return (
+        <>
+          <path d="M12 4 3 19h18L12 4Z" />
+          <path d="M12 10v4" />
+          <path d="M12 16.5h.01" />
         </>
       );
     default:

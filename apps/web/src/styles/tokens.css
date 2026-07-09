@@ -1,0 +1,152 @@
+@font-face {
+  font-family: "Lexend Variable";
+  src: url("/fonts/lexend-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --page-bg: #ffffff;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-muted: #f7f9fc;
+  --border: rgb(60 60 60 / 10%);
+  --border-strong: color-mix(in srgb, var(--accent) 32%, var(--border));
+  --text: #30343b;
+  --muted: rgb(48 52 58 / 70%);
+  --quiet: rgb(48 52 58 / 42%);
+  --accent: #ffbb00;
+  --accent-hover: #e6a800;
+  --accent-soft: #fff4cc;
+  --accent-text: #30343b;
+  --danger: #b42318;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #2563eb;
+  --note: #3b82f6;
+  --note-soft: #eff6ff;
+  --note-text: #1d4ed8;
+  --bookmark: #8b5cf6;
+  --bookmark-soft: #f5f3ff;
+  --bookmark-text: #6d28d9;
+  --todo: #10b981;
+  --todo-soft: #ecfdf5;
+  --todo-text: #047857;
+  --mixed: var(--accent);
+  --mixed-soft: var(--accent-soft);
+  --mixed-text: var(--accent-text);
+  --intent: var(--accent);
+  --intent-soft: var(--accent-soft);
+  --intent-text: var(--accent-text);
+  --radius: 8px;
+  --sidebar-w: 240px;
+  --shadow-sm: 0 12px 24px rgb(24 30 42 / 8%);
+  --shadow: 0 20px 56px rgb(24 30 42 / 12%);
+  --shadow-strong: 0 26px 72px rgb(24 30 42 / 16%);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --focus-ring: 0 0 0 2px var(--page-bg), 0 0 0 4px var(--accent);
+  font-family: "Lexend Variable", "Lexend", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --page-bg: #101114;
+    --bg: #101114;
+    --surface: #17191d;
+    --surface-raised: #1d2026;
+    --surface-muted: #22262d;
+    --border: rgb(255 255 255 / 12%);
+    --border-strong: color-mix(in srgb, var(--accent) 38%, var(--border));
+    --text: #edf0f5;
+    --muted: rgb(237 240 245 / 68%);
+    --quiet: rgb(237 240 245 / 42%);
+    --accent: #ffbf24;
+    --accent-hover: #ffd56a;
+    --accent-soft: rgb(255 191 36 / 16%);
+    --accent-text: #ffe3a0;
+    --danger: #ff7168;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --info: #60a5fa;
+    --note: #60a5fa;
+    --note-soft: rgb(96 165 250 / 16%);
+    --note-text: #93c5fd;
+    --bookmark: #a78bfa;
+    --bookmark-soft: rgb(167 139 250 / 16%);
+    --bookmark-text: #c4b5fd;
+    --todo: #34d399;
+    --todo-soft: rgb(52 211 153 / 16%);
+    --todo-text: #6ee7b7;
+    --mixed: var(--accent);
+    --mixed-soft: var(--accent-soft);
+    --mixed-text: var(--accent-text);
+    --intent: var(--accent);
+    --intent-soft: var(--accent-soft);
+    --intent-text: var(--accent-text);
+    --shadow-sm: 0 12px 24px rgb(0 0 0 / 22%);
+    --shadow: 0 20px 56px rgb(0 0 0 / 30%);
+    --shadow-strong: 0 26px 72px rgb(0 0 0 / 38%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page-bg: #101114;
+  --bg: #101114;
+  --surface: #17191d;
+  --surface-raised: #1d2026;
+  --surface-muted: #22262d;
+  --border: rgb(255 255 255 / 12%);
+  --border-strong: color-mix(in srgb, var(--accent) 38%, var(--border));
+  --text: #edf0f5;
+  --muted: rgb(237 240 245 / 68%);
+  --quiet: rgb(237 240 245 / 42%);
+  --accent: #ffbf24;
+  --accent-hover: #ffd56a;
+  --accent-soft: rgb(255 191 36 / 16%);
+  --accent-text: #ffe3a0;
+  --danger: #ff7168;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --note: #60a5fa;
+  --note-soft: rgb(96 165 250 / 16%);
+  --note-text: #93c5fd;
+  --bookmark: #a78bfa;
+  --bookmark-soft: rgb(167 139 250 / 16%);
+  --bookmark-text: #c4b5fd;
+  --todo: #34d399;
+  --todo-soft: rgb(52 211 153 / 16%);
+  --todo-text: #6ee7b7;
+  --mixed: var(--accent);
+  --mixed-soft: var(--accent-soft);
+  --mixed-text: var(--accent-text);
+  --intent: var(--accent);
+  --intent-soft: var(--accent-soft);
+  --intent-text: var(--accent-text);
+  --shadow-sm: 0 12px 24px rgb(0 0 0 / 22%);
+  --shadow: 0 20px 56px rgb(0 0 0 / 30%);
+  --shadow-strong: 0 26px 72px rgb(0 0 0 / 38%);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}

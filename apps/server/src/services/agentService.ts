@@ -30,21 +30,23 @@ export interface IAgentService {
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
 
-const SUPPORTED = new Set(["codex", "claude-code", "gemini"]);
-const DEFAULT_PROVIDER = "codex";
-const DEFAULT_MODELS: Record<string, string> = {
-  codex: "gpt-5.5",
-};
-const START_COMMANDS: Record<string, string> = {
+const START_COMMAND_ALIASES: Record<string, string> = {
   "claude-code": "claude",
-  codex: "codex",
-  gemini: "gemini",
+  nexight: "tutti-agent",
 };
 
 export function normalizeProvider(value: unknown): string {
   const v = String(value || "").trim().toLowerCase();
-  const aliases: Record<string, string> = { claude: "claude-code", "gemini-cli": "gemini" };
+  const aliases: Record<string, string> = {
+    claude: "claude-code",
+    "gemini-cli": "gemini",
+    nexight: "tutti-agent",
+  };
   return aliases[v] || v;
+}
+
+function providerStartCommand(provider: string): string | null {
+  return START_COMMAND_ALIASES[provider] ?? provider;
 }
 
 export class AgentService implements IAgentService {
@@ -61,7 +63,7 @@ export class AgentService implements IAgentService {
         const item = raw as Record<string, unknown>;
         const provider = normalizeProvider(item.provider);
         const status = String(item.status || "").trim().toLowerCase();
-        if (!SUPPORTED.has(provider) || !["available", "ready"].includes(status)) continue;
+        if (!provider || !["available", "ready"].includes(status)) continue;
         providers.push({ provider, status });
       }
       return {
@@ -81,7 +83,7 @@ export class AgentService implements IAgentService {
     if (wanted && available.includes(wanted)) return wanted;
     if (payload.defaultProvider && available.includes(payload.defaultProvider)) return payload.defaultProvider;
     if (available.length) return available[0]!;
-    return wanted || DEFAULT_PROVIDER;
+    return wanted || "";
   }
 
   async resolveModel(provider: string): Promise<string> {
@@ -108,9 +110,10 @@ export class AgentService implements IAgentService {
   ): Promise<AgentRunResult> {
     if (await callbacks?.isCanceled?.()) throw new Error("agent session was canceled");
     let provider = await this.resolveProvider(preferred);
-    const model = (await this.resolveModel(provider)) || DEFAULT_MODELS[provider] || "";
+    if (!provider) throw new Error("no agent provider is available");
+    const model = (await this.resolveModel(provider)) || "";
     if (!model) throw new Error(`no model available for provider ${provider}`);
-    const command = START_COMMANDS[provider];
+    const command = providerStartCommand(provider);
     if (!command) throw new Error(`unsupported agent provider ${provider}`);
     const args = [
       command,

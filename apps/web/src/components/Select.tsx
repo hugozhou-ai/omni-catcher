@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import * as SelectPrimitive from "@radix-ui/react-select";
 
 export type SelectOption<T extends string | number> = {
   value: T;
   label: string;
 };
+
+const EMPTY_VALUE = "__app_select_empty__";
+
+function toRadixValue(value: string): string {
+  return value === "" ? EMPTY_VALUE : value;
+}
+
+function fromRadixValue(value: string): string {
+  return value === EMPTY_VALUE ? "" : value;
+}
 
 export function Select<T extends string | number>(props: {
   value: T;
@@ -27,68 +38,56 @@ export function Select<T extends string | number>(props: {
     disabled = false,
     stopPropagation = false,
   } = props;
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selected = options.find((option) => option.value === value);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    function handlePointerDown(event: PointerEvent): void {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
 
   const classes = ["app-select", compact ? "compact" : "", inline ? "inline" : "", className]
     .filter(Boolean)
     .join(" ");
+  const stringValue = String(value);
+  const selected = options.find((option) => String(option.value) === stringValue);
 
   return (
-    <div ref={rootRef} className={classes}>
+    <div
+      className={classes}
+      onClick={stopPropagation ? (event) => event.stopPropagation() : undefined}
+      onPointerDown={stopPropagation ? (event) => event.stopPropagation() : undefined}
+    >
       {label ? <span className="app-select-label">{label}</span> : null}
-      <button
-        type="button"
-        className="app-select-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
+      <SelectPrimitive.Root
+        value={toRadixValue(stringValue)}
         disabled={disabled}
-        onClick={(event) => {
-          if (stopPropagation) event.stopPropagation();
-          if (!disabled) setOpen((current) => !current);
+        onValueChange={(next) => {
+          const decoded = fromRadixValue(next);
+          const match = options.find((option) => String(option.value) === decoded);
+          if (match) onChange(match.value);
         }}
       >
-        {selected?.label ?? String(value)}
-        <span className="app-select-chevron" aria-hidden="true" />
-      </button>
-      {open ? (
-        <div className="app-select-menu" role="listbox">
-          {options.map((option) => (
-            <button
-              key={String(option.value)}
-              type="button"
-              className={option.value === value ? "active" : ""}
-              role="option"
-              aria-selected={option.value === value}
-              onClick={(event) => {
-                if (stopPropagation) event.stopPropagation();
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.value === value ? <span aria-hidden="true">✓</span> : <span aria-hidden="true" />}
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+        <SelectPrimitive.Trigger className="app-select-trigger" aria-label={label}>
+          <SelectPrimitive.Value placeholder={selected?.label ?? stringValue}>
+            {selected?.label ?? stringValue}
+          </SelectPrimitive.Value>
+          <SelectPrimitive.Icon asChild>
+            <span className="app-select-chevron" aria-hidden="true" />
+          </SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
+        <SelectPrimitive.Portal>
+          <SelectPrimitive.Content className="app-select-content scroll-thin" position="popper" sideOffset={6}>
+            <SelectPrimitive.Viewport>
+              {options.map((option) => (
+                <SelectPrimitive.Item
+                  key={String(option.value)}
+                  className="app-select-item"
+                  value={toRadixValue(String(option.value))}
+                >
+                  <SelectPrimitive.ItemIndicator className="app-select-item-indicator">
+                    ✓
+                  </SelectPrimitive.ItemIndicator>
+                  <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.Viewport>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
     </div>
   );
 }

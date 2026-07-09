@@ -14,6 +14,7 @@ import { ICaptureService } from "../../services/captureService.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { Badge } from "../../components/Badge.js";
 import { Select } from "../../components/Select.js";
+import { Icon } from "../../components/Icons.js";
 import { intentKey } from "../../i18n/intent.js";
 import { showToast } from "../../platform/toast.js";
 
@@ -31,7 +32,7 @@ export function DecisionCard(props: {
   const library = useService(ILibraryService);
 
   const data = capture.classification || capture.rulePreview;
-  const initialPlan = resolveInitialSavePlan(data);
+  const initialPlan = resolveInitialSavePlan(data, t("legacyMergePreview"));
   const primary = data.primaryIntent === "mixed" ? "mixed" : data.primaryIntent;
   const selectable = data.items.length ? MIXED_INTENTS : BASE_INTENTS;
 
@@ -52,7 +53,9 @@ export function DecisionCard(props: {
 
   const showSavePlan = intent === "note";
   const mergeTargetId =
-    showSavePlan && (saveMode === "merge" || (saveMode === "collection" && targetItemId)) ? targetItemId : undefined;
+    showSavePlan && (saveMode === "merge" || (saveMode === "collection" && targetItemId))
+      ? targetItemId
+      : undefined;
   const titleValue = title.trim();
   const canSave = Boolean(titleValue) && !busy;
   const isRuleBased = data.source === "rule" || data.source === "rule-fallback";
@@ -62,13 +65,42 @@ export function DecisionCard(props: {
     [data, saveMode, t],
   );
   const headingOptions = useMemo(
-    () => buildHeadingOptions(data, targetItemId, insertHeading),
-    [data, targetItemId, insertHeading],
+    () => buildHeadingOptions(data, targetItemId, insertHeading, t("savePlanNoneHeading")),
+    [data, targetItemId, insertHeading, t],
   );
+
+  const previewNotices = useMemo(() => {
+    const notices: Array<{ tone: "warn" | "info"; text: string }> = [];
+    if (capture.status === "needs_review") {
+      notices.push({
+        tone: "warn",
+        text: capture.error ? `${t("needsReview")} ${t("classificationError")} ${capture.error}` : t("needsReview"),
+      });
+    }
+    if (isRuleBased) notices.push({ tone: "info", text: t("ruleBasedDecision") });
+    else if (mergeTargetId) notices.push({ tone: "info", text: t("mergeIntoHint") });
+    else if (showSavePlan && saveMode === "collection" && !mergeTargetId) {
+      notices.push({ tone: "info", text: t("createCollectionHint") });
+    } else if (splitCount) notices.push({ tone: "info", text: t("mixedSaveHint") });
+    else if (initialPlan?.reason) {
+      notices.push({ tone: "info", text: `${t("savePlanReason")}: ${initialPlan.reason}` });
+    }
+    return notices.slice(0, 2);
+  }, [
+    capture.error,
+    capture.status,
+    initialPlan?.reason,
+    isRuleBased,
+    mergeTargetId,
+    saveMode,
+    showSavePlan,
+    splitCount,
+    t,
+  ]);
 
   async function confirm(): Promise<void> {
     if (!titleValue) {
-      showToast(t("titleRequired"));
+      showToast(t("titleRequired"), "error");
       return;
     }
     setBusy(true);
@@ -83,41 +115,34 @@ export function DecisionCard(props: {
             .map((s) => s.trim())
             .filter(Boolean),
           ...(intent === "todo" ? { urgency, importance } : {}),
-          ...(showSavePlan ?
-            {
-              saveMode,
-              targetItemId:
-                saveMode === "merge" || saveMode === "collection" ? targetItemId || undefined : undefined,
-              insertHeading: insertHeading.trim() || undefined,
-              bodyPreview: bodyPreview.trim() || undefined,
-            }
-          : {}),
+          ...(showSavePlan
+            ? {
+                saveMode,
+                targetItemId:
+                  saveMode === "merge" || saveMode === "collection" ? targetItemId || undefined : undefined,
+                insertHeading: insertHeading.trim() || undefined,
+                bodyPreview: bodyPreview.trim() || undefined,
+              }
+            : {}),
         },
       });
-      showToast(issueFailed(result) ? t("savedIssueFailed") : t("saved"));
+      showToast(issueFailed(result) ? t("savedIssueFailed") : t("saved"), issueFailed(result) ? "info" : "success");
       await library.refresh();
       onDone();
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
       setBusy(false);
     }
   }
 
   async function reject(): Promise<void> {
-    console.info(
-      `capture-reject-ui ${JSON.stringify({
-        event: "click",
-        id: capture.id,
-        status: capture.status,
-      })}`,
-    );
     setBusy(true);
     try {
       await captureService.reject(capture.id);
-      showToast(t("discarded"));
+      showToast(t("discarded"), "info");
       onDone();
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
       setBusy(false);
     }
   }
@@ -128,7 +153,7 @@ export function DecisionCard(props: {
     try {
       await captureService.retry(capture.id);
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
       setBusy(false);
     }
   }
@@ -155,11 +180,14 @@ export function DecisionCard(props: {
     />
   ) : null;
 
+  const previewBody = data.summary || (bodyPreview ? bodyPreview.slice(0, 320) : "");
+
   if (detail) {
     return (
-      <div className={`decision-card decision-detail intent-border intent-${intent}`}>
+      <div className={`decision-card decision-detail intent-border intent-${intent}`} data-intent={intent}>
         <div className="decision-detail-head">
-          <button type="button" onClick={() => setDetail(false)}>
+          <button type="button" className="library-detail-back" onClick={() => setDetail(false)}>
+            <Icon name="chevronLeft" />
             {t("back")}
           </button>
           <Badge intent={intent} label={t(intentKey(intent))} />
@@ -175,7 +203,7 @@ export function DecisionCard(props: {
           onTags={setTags}
         />
         {savePlanPanel}
-        <div className="decision-detail-grid">
+        <div className="decision-detail-grid scroll-thin">
           {data.summary ? (
             <section className="detail-section">
               <h3>{t("agentSummary")}</h3>
@@ -237,7 +265,7 @@ export function DecisionCard(props: {
               <h3>{t("mixedItems")}</h3>
               <div className="mixed-items">
                 {data.items.map((item, index) => (
-                  <article key={`${item.type}-${index}`} className={`mixed-item intent-${item.type}`}>
+                  <article key={`${item.type}-${index}`} className={`mixed-item intent-border intent-${item.type}`}>
                     <Badge intent={item.type} label={t(intentKey(item.type))} />
                     {item.title ? <h4>{item.title}</h4> : null}
                     {item.summary ? <p>{item.summary}</p> : null}
@@ -284,7 +312,7 @@ export function DecisionCard(props: {
   }
 
   return (
-    <div className={`decision-card intent-border intent-${intent}`}>
+    <div className={`decision-card intent-border intent-${intent}`} data-intent={intent}>
       <div
         className="decision-preview"
         role="button"
@@ -304,34 +332,18 @@ export function DecisionCard(props: {
           <span className="detail-link">{t("viewDetail")}</span>
         </div>
 
-        {capture.status === "needs_review" && (
-          <div className="notice warn">
-            {t("needsReview")}
-            {capture.error ? (
-              <span>
-                {" "}
-                {t("classificationError")} {capture.error}
-              </span>
-            ) : null}
-          </div>
-        )}
-
-        {isRuleBased ? <div className="notice info">{t("ruleBasedDecision")}</div> : null}
-        {mergeTargetId ? <div className="notice info">{t("mergeIntoHint")}</div> : null}
-        {showSavePlan && saveMode === "collection" && !mergeTargetId ? (
-          <div className="notice info">{t("createCollectionHint")}</div>
-        ) : null}
-        {splitCount ? <div className="notice info">{t("mixedSaveHint")}</div> : null}
-        {initialPlan?.reason ? (
-          <div className="notice info">
-            {t("savePlanReason")}: {initialPlan.reason}
+        {previewNotices.length ? (
+          <div className="decision-notices">
+            {previewNotices.map((notice) => (
+              <div key={notice.text} className={`notice ${notice.tone}`}>
+                {notice.text}
+              </div>
+            ))}
           </div>
         ) : null}
 
         <h3 className="decision-preview-title">{title || data.title || t("titleRequired")}</h3>
-        {data.summary ? <p className="decision-summary">{data.summary}</p> : null}
-        {bodyPreview ? <pre className="decision-body-preview">{bodyPreview.slice(0, 320)}</pre> : null}
-        <p className="decision-original-preview">{capture.content}</p>
+        {previewBody ? <p className="decision-summary">{previewBody}</p> : null}
       </div>
 
       <div className="decision-form compact">
@@ -397,9 +409,10 @@ function SavePlanEditor(props: {
     onBodyPreview,
   } = props;
   const { t } = useTranslation();
+  const [advancedOpen, setAdvancedOpen] = useState(saveMode !== "new");
 
   return (
-    <section className="save-plan-editor">
+    <section className={`save-plan-editor ${advancedOpen ? "" : "collapsed-advanced"}`}>
       <h3>{t("savePlanTitle")}</h3>
       <Select
         className="save-plan-mode"
@@ -408,45 +421,59 @@ function SavePlanEditor(props: {
         options={SAVE_MODES.map((mode) => ({
           value: mode,
           label:
-            mode === "merge" ? t("savePlanModeMerge")
-            : mode === "collection" ? t("savePlanModeCollection")
-            : t("savePlanModeNew"),
+            mode === "merge"
+              ? t("savePlanModeMerge")
+              : mode === "collection"
+                ? t("savePlanModeCollection")
+                : t("savePlanModeNew"),
         }))}
-        onChange={onSaveMode}
+        onChange={(mode) => {
+          onSaveMode(mode);
+          if (mode !== "new") setAdvancedOpen(true);
+        }}
       />
-      {saveMode === "merge" || saveMode === "collection" ? (
-        <Select
-          className="save-plan-target"
-          label={t("savePlanTarget")}
-          value={targetItemId}
-          options={targetOptions}
-          onChange={onTargetItemId}
-        />
-      ) : null}
-      {saveMode !== "new" && headingOptions.length ? (
-        <Select
-          className="save-plan-heading"
-          label={t("savePlanInsertHeading")}
-          value={insertHeading}
-          options={headingOptions}
-          onChange={onInsertHeading}
-        />
-      ) : saveMode !== "new" ? (
+      <button type="button" className="save-plan-toggle" onClick={() => setAdvancedOpen((current) => !current)}>
+        {advancedOpen ? t("savePlanHideAdvanced") : t("savePlanAdvanced")}
+      </button>
+      <div className="save-plan-advanced">
+        {saveMode === "merge" || saveMode === "collection" ? (
+          <Select
+            className="save-plan-target"
+            label={t("savePlanTarget")}
+            value={targetItemId}
+            options={targetOptions}
+            onChange={onTargetItemId}
+          />
+        ) : null}
+        {saveMode !== "new" && headingOptions.length ? (
+          <Select
+            className="save-plan-heading"
+            label={t("savePlanInsertHeading")}
+            value={insertHeading}
+            options={headingOptions}
+            onChange={onInsertHeading}
+          />
+        ) : saveMode !== "new" ? (
+          <div className="field">
+            <label>{t("savePlanInsertHeading")}</label>
+            <input type="text" value={insertHeading} onChange={(event) => onInsertHeading(event.target.value)} />
+          </div>
+        ) : null}
         <div className="field">
-          <label>{t("savePlanInsertHeading")}</label>
-          <input type="text" value={insertHeading} onChange={(event) => onInsertHeading(event.target.value)} />
+          <label>{t("savePlanBodyPreview")}</label>
+          <textarea rows={6} value={bodyPreview} onChange={(event) => onBodyPreview(event.target.value)} />
         </div>
-      ) : null}
-      <div className="field">
-        <label>{t("savePlanBodyPreview")}</label>
-        <textarea rows={6} value={bodyPreview} onChange={(event) => onBodyPreview(event.target.value)} />
+        {data.savePlan?.reason ? (
+          <p className="save-plan-reason">
+            {t("savePlanReason")}: {data.savePlan.reason}
+          </p>
+        ) : null}
       </div>
-      {data.savePlan?.reason ? <p className="save-plan-reason">{t("savePlanReason")}: {data.savePlan.reason}</p> : null}
     </section>
   );
 }
 
-function resolveInitialSavePlan(data: Classification): SavePlan | null {
+function resolveInitialSavePlan(data: Classification, legacyReason: string): SavePlan | null {
   if (data.savePlan) return data.savePlan;
   const preview = data.mergePreview;
   if (!preview) return null;
@@ -455,7 +482,7 @@ function resolveInitialSavePlan(data: Classification): SavePlan | null {
       mode: "merge",
       targetItemId: preview.targetItemId,
       targetTitle: preview.targetTitle,
-      reason: "Legacy merge preview",
+      reason: legacyReason,
       bodyPreview: preview.insertedContent,
     };
   }
@@ -463,7 +490,7 @@ function resolveInitialSavePlan(data: Classification): SavePlan | null {
     return {
       mode: "collection",
       targetTitle: preview.targetTitle,
-      reason: "Legacy collection preview",
+      reason: legacyReason,
       bodyPreview: preview.insertedContent,
     };
   }
@@ -479,7 +506,9 @@ function buildTargetOptions(
   for (const item of data.relatedItems || []) {
     if (item.type !== "note") continue;
     if (mode === "collection" && !item.isCollection) continue;
-    const suffix = item.isCollection ? ` · ${mode === "collection" ? "collection" : item.reason}` : ` (${item.reason})`;
+    const suffix = item.isCollection
+      ? ` · ${mode === "collection" ? "collection" : item.reason}`
+      : ` (${item.reason})`;
     options.push({ value: item.id, label: `${item.title}${suffix}` });
   }
   return options;
@@ -489,10 +518,11 @@ function buildHeadingOptions(
   data: Classification,
   targetItemId: string,
   current: string,
+  noneLabel: string,
 ): Array<{ value: string; label: string }> {
   const target = (data.relatedItems || []).find((item) => item.id === targetItemId);
   const headings = target?.insertHeadings || [];
-  const options = [{ value: "", label: "—" }];
+  const options = [{ value: "", label: noneLabel }];
   for (const heading of headings) {
     options.push({ value: heading, label: heading });
   }
@@ -599,9 +629,7 @@ function DecisionFooter(props: {
     [t],
   );
   const confirmLabel =
-    mergeTargetId ? t("confirmMerge")
-    : saveMode === "collection" ? t("confirmCollection")
-    : t("confirm");
+    mergeTargetId ? t("confirmMerge") : saveMode === "collection" ? t("confirmCollection") : t("confirm");
 
   return (
     <>

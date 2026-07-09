@@ -16,6 +16,7 @@ export function MarkdownEditor(props: {
   const themeService = useService(IThemeService);
   const theme = useStore(themeService.theme);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const editorHeight = Math.min(480, Math.max(280, window.innerHeight - 280));
 
   return (
     <div className="markdown-editor-shell" data-color-mode={theme}>
@@ -46,7 +47,7 @@ export function MarkdownEditor(props: {
         preview={mode}
         hideToolbar
         visibleDragbar={false}
-        height={480}
+        height={editorHeight}
         textareaProps={{ disabled, spellCheck: true }}
       />
     </div>

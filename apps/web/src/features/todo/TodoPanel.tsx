@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Item, PriorityLevel, TodoProgress } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ILibraryService } from "../../services/libraryService.js";
 import { Icon } from "../../components/Icons.js";
 import { Select } from "../../components/Select.js";
+import { ConfirmDialog } from "../../components/primitives/Dialog.js";
 import { showToast } from "../../platform/toast.js";
+import { formatItemCount, formatRelativeTime } from "../../util/format.js";
 
 type SortKey = "created" | "urgency" | "importance";
 type ViewMode = "list" | "matrix";
-
 type Quadrant = "q1" | "q2" | "q3" | "q4";
 
 const QUADRANT_LABELS: Record<Quadrant, "matrixQ1" | "matrixQ2" | "matrixQ3" | "matrixQ4"> = {
@@ -44,8 +45,9 @@ function quadrantOf(item: Item): Quadrant {
 export function TodoPanel(props: {
   selectedItemId?: string | null;
   onSelectItem?: (itemId: string | null) => void;
+  onGoCapture?: () => void;
 }): ReactNode {
-  const { selectedItemId = null, onSelectItem } = props;
+  const { selectedItemId = null, onSelectItem, onGoCapture } = props;
   const { t } = useTranslation();
   const library = useService(ILibraryService);
   const items = useStore(library.items);
@@ -58,33 +60,50 @@ export function TodoPanel(props: {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<{ item: Item; markdown: string } | null>(null);
   const [loadingSelected, setLoadingSelected] = useState(false);
+  const [listBootstrapping, setListBootstrapping] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [dragOver, setDragOver] = useState<Quadrant | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Item | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const reloadToken = useRef(0);
 
   useEffect(() => {
-    void library.refresh("todo");
+    let cancelled = false;
+    setListBootstrapping(true);
+    void library.refresh("todo").finally(() => {
+      if (!cancelled) setListBootstrapping(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [library]);
 
   useEffect(() => {
+    setLoadError(false);
     if (!selectedItemId) {
       setSelected(null);
       setLoadingSelected(false);
       return;
     }
     let cancelled = false;
+    const token = ++reloadToken.current;
     setLoadingSelected(true);
     void library
       .readItem(selectedItemId)
       .then((result) => {
-        if (cancelled) return;
+        if (cancelled || token !== reloadToken.current) return;
         setSelected(result);
+        setLoadError(false);
       })
       .catch((error) => {
-        if (cancelled) return;
-        showToast((error as Error).message);
+        if (cancelled || token !== reloadToken.current) return;
+        showToast((error as Error).message, "error");
         setSelected(null);
+        setLoadError(true);
       })
       .finally(() => {
-        if (cancelled) return;
+        if (cancelled || token !== reloadToken.current) return;
         setLoadingSelected(false);
       });
     return () => {
@@ -122,18 +141,31 @@ export function TodoPanel(props: {
     return map;
   }, [filtered]);
 
+  const totalCount = items.filter((item) => item.type === "todo").length;
+  const hasActiveFilters = Boolean(
+    query.trim() || filterUrgency || filterImportance || filterProgress,
+  );
+
   async function openItem(item: Item): Promise<void> {
     onSelectItem?.(item.id);
   }
 
-  async function deleteItem(item: Item): Promise<void> {
-    if (!window.confirm(t("deleteConfirm"))) return;
-    await library.deleteItem(item.id);
-    if (selected?.item.id === item.id || selectedItemId === item.id) {
-      onSelectItem?.(null);
-      setSelected(null);
+  async function confirmDelete(): Promise<void> {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await library.deleteItem(pendingDelete.id);
+      if (selected?.item.id === pendingDelete.id || selectedItemId === pendingDelete.id) {
+        onSelectItem?.(null);
+        setSelected(null);
+      }
+      showToast(t("deleted"));
+      setPendingDelete(null);
+    } catch (error) {
+      showToast((error as Error).message, "error");
+    } finally {
+      setDeleting(false);
     }
-    showToast(t("deleted"));
   }
 
   async function updateProgress(item: Item, todoProgress: TodoProgress): Promise<void> {
@@ -141,7 +173,7 @@ export function TodoPanel(props: {
       const next = await library.updateItemMeta(item.id, { todoProgress });
       if (selected?.item.id === item.id) setSelected({ ...selected, item: next });
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
     }
   }
 
@@ -159,7 +191,7 @@ export function TodoPanel(props: {
       setSelected(next);
     } catch (error) {
       setSelected(previous);
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
     }
   }
 
@@ -168,8 +200,30 @@ export function TodoPanel(props: {
     try {
       await library.updateItemMeta(itemId, { urgency, importance });
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
     }
+  }
+
+  function retryLoad(): void {
+    if (!selectedItemId) return;
+    setLoadError(false);
+    setLoadingSelected(true);
+    const token = ++reloadToken.current;
+    void library
+      .readItem(selectedItemId)
+      .then((result) => {
+        if (token !== reloadToken.current) return;
+        setSelected(result);
+      })
+      .catch((error) => {
+        if (token !== reloadToken.current) return;
+        showToast((error as Error).message, "error");
+        setLoadError(true);
+      })
+      .finally(() => {
+        if (token !== reloadToken.current) return;
+        setLoadingSelected(false);
+      });
   }
 
   const sortOptions = useMemo(
@@ -220,25 +274,55 @@ export function TodoPanel(props: {
     [t],
   );
 
+  const deleteDialog = (
+    <ConfirmDialog
+      open={Boolean(pendingDelete)}
+      onOpenChange={(open) => {
+        if (!open) setPendingDelete(null);
+      }}
+      title={t("deleteItem")}
+      description={t("deleteConfirm")}
+      confirmLabel={t("deleteItem")}
+      cancelLabel={t("cancel")}
+      danger
+      busy={deleting}
+      onConfirm={confirmDelete}
+    />
+  );
+
   if (selectedItemId) {
     return (
-      <section className="library-content">
+      <section className="library-content" data-intent="todo">
         {loadingSelected && !selected ? (
-          <div className="library-detail-loading" aria-busy="true" />
+          <div className="library-detail-loading" aria-busy="true" aria-label={t("loadingItem")} />
         ) : selected ? (
           <>
             <header className="library-detail-header">
               <div className="library-detail-header-main">
-                <h2>{selected.item.title || selected.item.id}</h2>
+                <div className="library-detail-header-row">
+                  <button
+                    type="button"
+                    className="library-detail-back"
+                    onClick={() => onSelectItem?.(null)}
+                  >
+                    <Icon name="chevronLeft" />
+                    {t("back")}
+                  </button>
+                  <div>
+                    <h2>{selected.item.title || selected.item.id}</h2>
+                  </div>
+                </div>
               </div>
               <div className="library-detail-header-actions">
-                <time>{(selected.item.createdAt || "").slice(0, 10)}</time>
-                <button type="button" className="viewer-delete" onClick={() => void deleteItem(selected.item)}>
+                <time dateTime={selected.item.createdAt || undefined}>
+                  {formatRelativeTime(selected.item.createdAt, t)}
+                </time>
+                <button type="button" className="viewer-delete" onClick={() => setPendingDelete(selected.item)}>
                   {t("deleteItem")}
                 </button>
               </div>
             </header>
-            <div className="todo-detail-body">
+            <div className="todo-detail-body scroll-thin">
               <div className="todo-detail-controls">
                 <Select
                   label={t("todoProgress")}
@@ -253,14 +337,27 @@ export function TodoPanel(props: {
               />
             </div>
           </>
+        ) : loadError ? (
+          <div className="library-detail-error">
+            <p>{t("loadItemFailed")}</p>
+            <button type="button" className="primary" onClick={retryLoad}>
+              {t("retryLoad")}
+            </button>
+          </div>
         ) : null}
+        {deleteDialog}
       </section>
     );
   }
 
   return (
-    <section className="library-content list-mode">
-      <header className="collection-header">
+    <section className="library-content list-mode" data-intent="todo">
+      <header className="library-header">
+        <div>
+          <p className="section-kicker">{t("libraryKicker")}</p>
+          <h2>{t("tabTodo")}</h2>
+          <p className="library-count">{formatItemCount(totalCount, t("libraryItemCount"))}</p>
+        </div>
         <div className="collection-toolbar">
           <label className="search-box grow">
             <Icon name="search" />
@@ -272,24 +369,14 @@ export function TodoPanel(props: {
             />
           </label>
           <Select inline value={sortBy} options={sortOptions} onChange={setSortBy} />
-          <Select
-            inline
-            value={filterUrgency}
-            options={priorityFilterOptions}
-            onChange={setFilterUrgency}
-          />
+          <Select inline value={filterUrgency} options={priorityFilterOptions} onChange={setFilterUrgency} />
           <Select
             inline
             value={filterImportance}
             options={importanceFilterOptions}
             onChange={setFilterImportance}
           />
-          <Select
-            inline
-            value={filterProgress}
-            options={progressFilterOptions}
-            onChange={setFilterProgress}
-          />
+          <Select inline value={filterProgress} options={progressFilterOptions} onChange={setFilterProgress} />
           <div className="view-toggle">
             <button
               type="button"
@@ -311,8 +398,24 @@ export function TodoPanel(props: {
         </div>
       </header>
 
-      {filtered.length === 0 ? (
-        <div className="empty">{t("emptyLibrary")}</div>
+      {listBootstrapping ? (
+        <div className="skeleton-grid" aria-busy="true" aria-label={t("loadingItem")}>
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="skeleton-card" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty">
+          <span className="empty-icon">
+            <Icon name="check" />
+          </span>
+          <span>{hasActiveFilters ? t("emptySearch") : t("emptyLibrary")}</span>
+          {!hasActiveFilters && onGoCapture ? (
+            <button type="button" className="primary empty-cta" onClick={onGoCapture}>
+              {t("goCapture")}
+            </button>
+          ) : null}
+        </div>
       ) : view === "list" ? (
         <div className="card-grid">
           {filtered.map((item) => (
@@ -323,7 +426,7 @@ export function TodoPanel(props: {
               expanded
               onProgress={(progress) => void updateProgress(item, progress)}
               onClick={() => void openItem(item)}
-              onDelete={() => void deleteItem(item)}
+              onDelete={() => setPendingDelete(item)}
             />
           ))}
         </div>
@@ -332,10 +435,15 @@ export function TodoPanel(props: {
           {MATRIX_ORDER.map((q) => (
             <div
               key={q}
-              className={`matrix-cell matrix-${q}`}
-              onDragOver={(event) => event.preventDefault()}
+              className={`matrix-cell matrix-${q} ${dragOver === q ? "drag-over" : ""}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOver(q);
+              }}
+              onDragLeave={() => setDragOver((current) => (current === q ? null : current))}
               onDrop={(event) => {
                 event.preventDefault();
+                setDragOver(null);
                 const id = event.dataTransfer.getData("text/plain");
                 if (id) void dropOnQuadrant(q, id);
               }}
@@ -360,7 +468,7 @@ export function TodoPanel(props: {
           ))}
         </div>
       )}
-
+      {deleteDialog}
     </section>
   );
 }
@@ -401,7 +509,7 @@ function TodoCard(props: {
   if (variant === "matrix") {
     return (
       <article
-        className={`item-card todo-card matrix-todo-card ${expanded ? "expanded" : "compact"}`}
+        className={`item-card todo-card matrix-todo-card intent-todo ${expanded ? "expanded" : "compact"}`}
         draggable={draggable}
         onClick={onToggleExpanded}
         onDragStart={(event) => {
@@ -410,6 +518,7 @@ function TodoCard(props: {
         }}
       >
         <div className="matrix-card-main">
+          <Icon name="chevronRight" className="icon matrix-card-chevron" />
           <h3 className="item-card-title">{item.title || item.id}</h3>
           <span className={`progress-chip progress-${progress}`}>{t(progressKey(progress))}</span>
         </div>
@@ -442,7 +551,9 @@ function TodoCard(props: {
       <div className="item-card-head">
         <div className="item-card-title-block">
           <h3 className="item-card-title">{item.title || item.id}</h3>
-          <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
+          <time className="item-card-date" dateTime={item.createdAt || undefined}>
+            {formatRelativeTime(item.createdAt, t)}
+          </time>
         </div>
         {onDelete ? (
           <button
@@ -474,11 +585,19 @@ function TodoCard(props: {
             label={t("todoProgress")}
             value={progress}
             options={progressOptions}
-            onChange={(progress) => onProgress?.(progress)}
+            onChange={(next) => onProgress?.(next)}
             compact
             stopPropagation
           />
-          {item.tags?.length ? <div className="item-card-tags">{item.tags.join(" · ")}</div> : null}
+          {item.tags?.length ? (
+            <div className="item-card-tag-chips">
+              {item.tags.map((tag) => (
+                <span key={tag} className="item-card-tag-chip">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </>
       ) : null}
     </article>

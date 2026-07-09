@@ -60,7 +60,6 @@ export interface Messages {
   emptyPending: string;
   emptyLibrary: string;
   emptySearch: string;
-  librarySelectItem: string;
   saved: string;
   deleted: string;
   deleteItem: string;
@@ -119,7 +118,30 @@ export interface Messages {
   savePlanInsertHeading: string;
   savePlanBodyPreview: string;
   savePlanNoTarget: string;
+  savePlanNoneHeading: string;
+  savePlanAdvanced: string;
+  savePlanHideAdvanced: string;
   confirmCollection: string;
+  captureStepInput: string;
+  captureStepClassify: string;
+  captureStepConfirm: string;
+  goCapture: string;
+  loadingItem: string;
+  loadItemFailed: string;
+  retryLoad: string;
+  relativeJustNow: string;
+  relativeMinutes: string;
+  relativeHours: string;
+  relativeDays: string;
+  settingsTitle: string;
+  settingsLocale: string;
+  settingsTheme: string;
+  settingsHostManaged: string;
+  openMenu: string;
+  closeMenu: string;
+  cancel: string;
+  legacyMergePreview: string;
+  libraryItemCount: string;
 }
 
 export function normalizeLocale(value: string | null | undefined): Locale {

@@ -82,6 +82,7 @@ export function CaptureHome(): ReactNode {
   const [providers, setProviders] = useState<string[]>([]);
   const [providerHint, setProviderHint] = useState("");
   const [preferred, setPreferred] = useState("");
+  const [quoteExpanded, setQuoteExpanded] = useState(false);
   const providerChoiceVersion = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 24, y: 18 });
@@ -119,18 +120,25 @@ export function CaptureHome(): ReactNode {
     }
   }, [activeId, captures]);
 
+  useEffect(() => {
+    setQuoteExpanded(false);
+  }, [submitted]);
+
   function reset(): void {
     setContent("");
     setSubmitted("");
     setActiveId(null);
     setBusy(false);
     setCanceling(false);
+    setQuoteExpanded(false);
   }
 
   function onProviderChange(value: string): void {
     providerChoiceVersion.current += 1;
     setPreferred(value);
-    void workspace.setPreferredProvider(value).catch((error) => showToast((error as Error).message));
+    void workspace.setPreferredProvider(value).catch((error) =>
+      showToast((error as Error).message, "error"),
+    );
   }
 
   async function submit(): Promise<void> {
@@ -142,7 +150,7 @@ export function CaptureHome(): ReactNode {
       const capture = await captureService.create(text);
       setActiveId(capture.id);
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
       reset();
     } finally {
       setBusy(false);
@@ -157,9 +165,9 @@ export function CaptureHome(): ReactNode {
       setContent(result.content || submitted);
       setSubmitted("");
       setActiveId(null);
-      showToast(t("classificationStopped"));
+      showToast(t("classificationStopped"), "info");
     } catch (error) {
-      showToast((error as Error).message);
+      showToast((error as Error).message, "error");
     } finally {
       setCanceling(false);
       setBusy(false);
@@ -192,19 +200,43 @@ export function CaptureHome(): ReactNode {
     transform: `translate(${caretBox.x}px, ${caretBox.y}px)`,
   };
 
+  const quoteNeedsToggle = submitted.length > 180;
+
   return (
     <div className="capture-home">
       <div className="capture-body">
-        <div className="capture-hero">
-          <div className="capture-brand">
-            <div className="capture-logo-frame">
-              <img src="/omni-catcher-logo-large.webp" alt="Omni Catcher" className="capture-logo" draggable={false} />
+        <CaptureStepper phase={phase} />
+
+        {phase === "idle" ? (
+          <div className="capture-hero">
+            <div className="capture-brand">
+              <div className="capture-logo-frame">
+                <img
+                  src="/omni-catcher-logo-large.webp"
+                  alt="Omni Catcher"
+                  className="capture-logo"
+                  draggable={false}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {phase !== "idle" && submitted ? (
-          <blockquote className="capture-quote">{submitted}</blockquote>
+          <div className="capture-quote-wrap">
+            <blockquote className={`capture-quote ${quoteNeedsToggle && !quoteExpanded ? "collapsed" : ""}`}>
+              {submitted}
+            </blockquote>
+            {quoteNeedsToggle ? (
+              <button
+                type="button"
+                className="capture-quote-toggle"
+                onClick={() => setQuoteExpanded((current) => !current)}
+              >
+                {quoteExpanded ? t("collapse") : t("expand")}
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         {phase === "processing" ? (
@@ -213,7 +245,7 @@ export function CaptureHome(): ReactNode {
               <div className="capture-processing-header">
                 <div className="capture-processing-status">
                   <Spinner />
-                  <p>{progressText(activeCapture?.progress, t)}</p>
+                  <p aria-live="polite">{progressText(activeCapture?.progress, t)}</p>
                 </div>
                 <button
                   type="button"
@@ -226,7 +258,7 @@ export function CaptureHome(): ReactNode {
                 </button>
               </div>
               {agentActivity ? (
-                <div className="capture-agent-activity" aria-live="polite">
+                <div className="capture-agent-activity scroll-thin" aria-live="polite">
                   {agentActivity}
                 </div>
               ) : null}
@@ -240,60 +272,87 @@ export function CaptureHome(): ReactNode {
 
         {phase === "idle" ? (
           <div className="capture-sheet">
-          <div className="capture-textarea-wrap">
-            <textarea
-              ref={textareaRef}
-              className="capture-textarea"
-              value={content}
-              placeholder={t("capturePlaceholder")}
-              onBlur={() => setCaretBox((box) => ({ ...box, visible: false }))}
-              onChange={(event) => {
-                setContent(event.target.value);
-                refreshCaret();
-              }}
-              onClick={refreshCaret}
-              onFocus={refreshCaret}
-              onKeyDown={onKeyDown}
-              onKeyUp={refreshCaret}
-              onScroll={refreshCaret}
-              onSelect={refreshCaret}
-            />
-            <span
-              aria-hidden="true"
-              className={`capture-custom-caret ${caretBox.visible ? "visible" : ""}`}
-              style={caretStyle}
-            />
-          </div>
-          <div className="capture-input-bar">
-            <div className="capture-input-meta">
-              {providerHint ? <span className="hint">{providerHint}</span> : null}
-              {providers.length ? (
-                <div className="provider-select">
-                  <span className="hint">{t("providerLabel")}</span>
-                  <Select
-                    inline
-                    value={preferred}
-                    options={[
-                      { value: "", label: t("providerDefaultOption") },
-                      ...providers.map((name) => ({ value: name, label: name })),
-                    ]}
-                    onChange={onProviderChange}
-                  />
-                </div>
-              ) : null}
+            <div className="capture-textarea-wrap">
+              <textarea
+                ref={textareaRef}
+                className="capture-textarea"
+                value={content}
+                placeholder={t("emptyPending")}
+                onBlur={() => setCaretBox((box) => ({ ...box, visible: false }))}
+                onChange={(event) => {
+                  setContent(event.target.value);
+                  refreshCaret();
+                }}
+                onClick={refreshCaret}
+                onFocus={refreshCaret}
+                onKeyDown={onKeyDown}
+                onKeyUp={refreshCaret}
+                onScroll={refreshCaret}
+                onSelect={refreshCaret}
+              />
+              <span
+                aria-hidden="true"
+                className={`capture-custom-caret ${caretBox.visible ? "visible" : ""}`}
+                style={caretStyle}
+              />
             </div>
-            <button
-              type="button"
-              className="primary capture-submit"
-              disabled={!content.trim() || busy}
-              onClick={() => void submit()}
-            >
-              {t("captureButton")}
-            </button>
-          </div>
+            <div className="capture-input-bar">
+              <div className="capture-input-meta">
+                {providerHint ? <span className="provider-hint-warn">{providerHint}</span> : null}
+                {providers.length ? (
+                  <div className="provider-select">
+                    <span className="hint">{t("providerLabel")}</span>
+                    <Select
+                      inline
+                      value={preferred}
+                      options={[
+                        { value: "", label: t("providerDefaultOption") },
+                        ...providers.map((name) => ({ value: name, label: name })),
+                      ]}
+                      onChange={onProviderChange}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="primary capture-submit"
+                disabled={!content.trim() || busy}
+                onClick={() => void submit()}
+              >
+                {t("captureButton")}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function CaptureStepper(props: { phase: Phase }): ReactNode {
+  const { phase } = props;
+  const { t } = useTranslation();
+  const steps = [
+    { id: "idle" as const, label: t("captureStepInput") },
+    { id: "processing" as const, label: t("captureStepClassify") },
+    { id: "review" as const, label: t("captureStepConfirm") },
+  ];
+  const activeIndex = steps.findIndex((step) => step.id === phase);
+
+  return (
+    <div className="capture-stepper" aria-label={t("captureTitle")}>
+      {steps.map((step, index) => (
+        <div key={step.id} style={{ display: "contents" }}>
+          {index > 0 ? <span className="capture-step-divider" aria-hidden="true" /> : null}
+          <span
+            className={`capture-step ${index === activeIndex ? "active" : ""} ${index < activeIndex ? "done" : ""}`}
+          >
+            <span className="capture-step-dot" aria-hidden="true" />
+            {step.label}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

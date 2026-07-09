@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@omni-catcher/shared": "workspace:*",
+    "@radix-ui/react-dialog": "^1.1.19",
+    "@radix-ui/react-select": "^2.3.3",
+    "@radix-ui/react-tooltip": "^1.2.12",
     "@uiw/react-markdown-preview": "^5.2.1",
     "@uiw/react-md-editor": "^4.1.1",
     "react": "^19.2.0",

@@ -30,15 +30,8 @@ export interface IAgentService {
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
 
-const START_COMMANDS: Record<string, string> = {
+const START_COMMAND_ALIASES: Record<string, string> = {
   "claude-code": "claude",
-  codex: "codex",
-  gemini: "gemini",
-  cursor: "cursor",
-  opencode: "opencode",
-  "tutti-agent": "tutti-agent",
-  hermes: "hermes",
-  openclaw: "openclaw",
   nexight: "tutti-agent",
 };
 
@@ -53,7 +46,7 @@ export function normalizeProvider(value: unknown): string {
 }
 
 function providerStartCommand(provider: string): string | null {
-  return START_COMMANDS[provider] ?? provider;
+  return START_COMMAND_ALIASES[provider] ?? provider;
 }
 
 export class AgentService implements IAgentService {

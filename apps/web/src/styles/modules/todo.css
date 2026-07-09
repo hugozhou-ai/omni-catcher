@@ -1,0 +1,186 @@
+.eisenhower {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 2fr));
+  gap: 18px;
+  min-height: 520px;
+}
+
+.matrix-cell {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-top: 1.5px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.matrix-cell h3 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.matrix-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.matrix-items .item-card {
+  min-height: 58px;
+  padding: 10px;
+}
+
+.matrix-todo-card {
+  cursor: pointer;
+  gap: 8px;
+}
+
+.matrix-todo-card.compact {
+  min-height: 0;
+}
+
+.matrix-todo-card.expanded {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.matrix-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.matrix-todo-card .item-card-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.matrix-todo-card .progress-chip {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.matrix-card-details-link {
+  margin-top: auto;
+  padding: 4px 0 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  align-self: flex-start;
+}
+
+.matrix-card-details-link:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration: underline;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.todo-card.compact {
+  gap: 8px;
+}
+
+.todo-card.compact .item-card-head {
+  margin-bottom: 0;
+}
+
+.todo-card.compact .item-card-title {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.todo-card.expanded:not(.matrix-todo-card) {
+  min-height: 140px;
+}
+
+.matrix-q1 {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.matrix-q2 {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.matrix-q3 {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.matrix-q4 {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.matrix-items .item-card-summary {
+  -webkit-line-clamp: 2;
+}
+
+.todo-detail-body {
+  padding: 28px 32px 32px;
+}
+
+.todo-detail-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 18px;
+}
+
+.todo-task-panel {
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.todo-task-panel h3 {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.todo-task-panel p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.todo-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.todo-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+}
+
+.todo-task-row input {
+  margin-top: 3px;
+}
+
+.todo-task-row span {
+  overflow-wrap: anywhere;
+}

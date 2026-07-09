@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Item } from "@omni-catcher/shared";
 import { Icon } from "./Icons.js";
 import { useTranslation } from "../hooks/useTranslation.js";
+import { formatRelativeTime } from "../util/format.js";
 
 export function ItemCard(props: {
   item: Item;
@@ -27,7 +28,9 @@ export function ItemCard(props: {
       <div className="item-card-head">
         <div className="item-card-title-block">
           <h3 className="item-card-title">{item.title || item.id}</h3>
-          <time className="item-card-date">{(item.createdAt || "").slice(0, 10)}</time>
+          <time className="item-card-date" dateTime={item.createdAt || undefined}>
+            {formatRelativeTime(item.createdAt, t)}
+          </time>
         </div>
         {onDelete ? (
           <button
@@ -60,7 +63,13 @@ export function ItemCard(props: {
         </div>
       ) : null}
       {item.tags?.length ? (
-        <div className="item-card-tags">{item.tags.join(" · ")}</div>
+        <div className="item-card-tag-chips">
+          {item.tags.map((tag) => (
+            <span key={tag} className="item-card-tag-chip">
+              {tag}
+            </span>
+          ))}
+        </div>
       ) : null}
     </article>
   );

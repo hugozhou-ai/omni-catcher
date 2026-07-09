@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Toast } from "./components/Toast.js";
 import { Sidebar, type AppView } from "./components/Sidebar.js";
+import { TooltipProvider } from "./components/primitives/Tooltip.js";
 import { CaptureHome } from "./features/capture/CaptureHome.js";
 import { LibraryPanel } from "./features/library/LibraryPanel.js";
 import {
@@ -21,6 +22,7 @@ export function App(): ReactNode {
   const library = useService(ILibraryService);
   const [view, setView] = useState<AppView>("capture");
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [librarySelection, setLibrarySelection] = useState<LibrarySelection>(DEFAULT_LIBRARY_SELECTION);
 
   useEffect(() => {
@@ -48,28 +50,33 @@ export function App(): ReactNode {
   }
 
   return (
-    <div className="shell">
-      <Sidebar
-        active={view}
-        expanded={sidebarExpanded}
-        librarySelection={librarySelection}
-        onNavigate={navigate}
-        onExpandedChange={setSidebarExpanded}
-        onLibraryNavigate={navigateLibrary}
-      />
-      <main className={`main ${view === "capture" ? "main-home" : "main-library"}`}>
-        {view === "capture" ? (
-          <CaptureHome />
-        ) : (
-          <LibraryPanel
-            selection={librarySelection}
-            onSelectItem={(itemId) =>
-              setLibrarySelection((current) => ({ ...current, itemId }))
-            }
-          />
-        )}
-      </main>
-      <Toast />
-    </div>
+    <TooltipProvider>
+      <div className={`shell ${drawerOpen ? "drawer-open" : ""}`}>
+        <Sidebar
+          active={view}
+          expanded={sidebarExpanded}
+          drawerOpen={drawerOpen}
+          librarySelection={librarySelection}
+          onNavigate={navigate}
+          onExpandedChange={setSidebarExpanded}
+          onDrawerOpenChange={setDrawerOpen}
+          onLibraryNavigate={navigateLibrary}
+        />
+        <main className={`main ${view === "capture" ? "main-home" : "main-library"}`}>
+          {view === "capture" ? (
+            <CaptureHome />
+          ) : (
+            <LibraryPanel
+              selection={librarySelection}
+              onSelectItem={(itemId) =>
+                setLibrarySelection((current) => ({ ...current, itemId }))
+              }
+              onGoCapture={() => navigate("capture")}
+            />
+          )}
+        </main>
+        <Toast />
+      </div>
+    </TooltipProvider>
   );
 }

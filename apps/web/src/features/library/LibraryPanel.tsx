@@ -6,11 +6,18 @@ import { TodoPanel } from "../todo/TodoPanel.js";
 export function LibraryPanel(props: {
   selection: LibrarySelection;
   onSelectItem: (itemId: string | null) => void;
+  onGoCapture?: () => void;
 }): ReactNode {
-  const { selection, onSelectItem } = props;
+  const { selection, onSelectItem, onGoCapture } = props;
 
   if (selection.category === "todo") {
-    return <TodoPanel selectedItemId={selection.itemId} onSelectItem={onSelectItem} />;
+    return (
+      <TodoPanel
+        selectedItemId={selection.itemId}
+        onSelectItem={onSelectItem}
+        onGoCapture={onGoCapture}
+      />
+    );
   }
 
   return (
@@ -18,6 +25,7 @@ export function LibraryPanel(props: {
       type={selection.category}
       selectedItemId={selection.itemId}
       onSelectItem={onSelectItem}
+      onGoCapture={onGoCapture}
     />
   );
 }

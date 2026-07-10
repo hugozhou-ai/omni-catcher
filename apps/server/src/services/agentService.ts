@@ -30,23 +30,12 @@ export interface IAgentService {
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
 
-const START_COMMAND_ALIASES: Record<string, string> = {
-  "claude-code": "claude",
-  nexight: "tutti-agent",
-};
-
 export function normalizeProvider(value: unknown): string {
-  const v = String(value || "").trim().toLowerCase();
-  const aliases: Record<string, string> = {
-    claude: "claude-code",
-    "gemini-cli": "gemini",
-    nexight: "tutti-agent",
-  };
-  return aliases[v] || v;
-}
-
-function providerStartCommand(provider: string): string | null {
-  return START_COMMAND_ALIASES[provider] ?? provider;
+  const provider = String(value || "").trim().toLowerCase();
+  // Settings created before Tutti standardized the Claude runtime ID may still
+  // contain "claude". Canonicalize only at this persistence/API boundary; the
+  // live provider catalog remains the source of truth for executable IDs.
+  return provider === "claude" ? "claude-code" : provider;
 }
 
 export class AgentService implements IAgentService {
@@ -57,19 +46,26 @@ export class AgentService implements IAgentService {
   async listProviders(): Promise<AgentProvidersResult> {
     try {
       const result = await this.cli.run(["agent", "providers"], 30_000);
+      if (result.schemaVersion !== 2) {
+        throw new Error("unsupported Tutti agent provider catalog schema");
+      }
       const providers: AgentProvider[] = [];
       for (const raw of (result.providers as unknown[]) || []) {
         if (!raw || typeof raw !== "object") continue;
         const item = raw as Record<string, unknown>;
-        const provider = normalizeProvider(item.provider);
-        const status = String(item.status || "").trim().toLowerCase();
+        const provider = normalizeProvider(item.providerId);
+        const availability =
+          item.availability && typeof item.availability === "object"
+            ? (item.availability as Record<string, unknown>)
+            : {};
+        const status = String(availability.status || "").trim().toLowerCase();
         if (!provider || !["available", "ready"].includes(status)) continue;
         providers.push({ provider, status });
       }
       return {
         available: providers.length > 0,
         providers,
-        defaultProvider: normalizeProvider(result.defaultProvider),
+        defaultProvider: normalizeProvider(result.defaultProviderId),
       };
     } catch (error) {
       return { available: false, providers: [], defaultProvider: "", error: (error as Error).message };
@@ -112,24 +108,21 @@ export class AgentService implements IAgentService {
     let provider = await this.resolveProvider(preferred);
     if (!provider) throw new Error("no agent provider is available");
     const model = (await this.resolveModel(provider)) || "";
-    if (!model) throw new Error(`no model available for provider ${provider}`);
-    const command = providerStartCommand(provider);
-    if (!command) throw new Error(`unsupported agent provider ${provider}`);
     const args = [
-      command,
+      "agent",
       "start",
+      "--provider",
+      provider,
       "--prompt",
       prompt,
       "--title",
       title,
-      "--visible",
-      "false",
-      "--permission-mode",
-      "auto",
+      "--hidden",
+      "true",
       "--cwd",
       process.env.TUTTI_APP_DATA_DIR || process.cwd(),
     ];
-    args.push("--model", model);
+    if (model) args.push("--model", model);
 
     const start = await this.cli.run(args, 60_000);
     const startSession = (start.session as Record<string, unknown>) || {};

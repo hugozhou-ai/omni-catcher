@@ -13,14 +13,16 @@ import { IStorageService, StorageService } from "./services/storageService.js";
 import { IIssueService, IssueService } from "./services/issueService.js";
 import { IReferenceService, ReferenceService } from "./services/referenceService.js";
 import { ICaptureService, CaptureService } from "./services/captureService.js";
+import { ISkillRegistryService, SkillRegistryService } from "./services/skillRegistryService.js";
 
 export function createServices(config: AppConfig): IInstantiationService {
   const collection = new ServiceCollection();
 
   const log = new ConsoleLogService("omni-catcher");
   const cli = new TuttiCliService(log);
-  const agent = new AgentService();
-  const classification = new ClassificationService(config, cli, log);
+  const skills = new SkillRegistryService(config.skillsDir);
+  const agent = new AgentService(skills, config.dataDir);
+  const classification = new ClassificationService(config);
   const storage = new StorageService(config);
   const issues = new IssueService(cli);
   const reference = new ReferenceService(storage);
@@ -29,6 +31,7 @@ export function createServices(config: AppConfig): IInstantiationService {
   collection.set(IAppConfig, config);
   collection.set(ILogService, log);
   collection.set(ITuttiCliService, cli);
+  collection.set(ISkillRegistryService, skills);
   collection.set(IAgentService, agent);
   collection.set(IClassificationService, classification);
   collection.set(IStorageService, storage);

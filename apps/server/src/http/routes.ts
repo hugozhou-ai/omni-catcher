@@ -238,6 +238,7 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
             const data = capture.classification || capture.rulePreview;
             return cliJson({
               capture,
+              agentResult: capture.agentResult || null,
               savePlan: data.savePlan || null,
               mergePreview: data.mergePreview || null,
               relatedItems: data.relatedItems || [],
@@ -253,7 +254,8 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
               return {
                 id: capture.id,
                 status: capture.status,
-                intent: data.primaryIntent,
+                purpose: capture.agentResult?.purpose || "",
+                intent: capture.agentResult?.intents.join(", ") || data.primaryIntent,
                 title: data.title,
                 created: capture.createdAt,
               };

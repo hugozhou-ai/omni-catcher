@@ -1,6 +1,18 @@
 /** Persisted item intents (and transient classification-only values). */
 export type Intent = "note" | "bookmark" | "todo" | "mixed";
 export type ClassificationIntent = Intent | "clarify";
+export type ContentIntent = Exclude<Intent, "mixed">;
+export type UserPurpose = "create" | "organize" | "query";
+
+export interface AgentTaskResult {
+  purpose: UserPurpose;
+  intents: ContentIntent[];
+  summary: string;
+  /** Markdown answer for query requests; empty for create/organize. */
+  answer: string;
+  /** Data-directory-relative Markdown paths changed by the Agent. */
+  changedFiles: string[];
+}
 
 export type CaptureStatus = "classifying" | "classified" | "needs_review";
 export type CaptureSource = "paste" | "url" | "cli";
@@ -98,6 +110,8 @@ export interface Capture {
   progress?: CaptureProgress;
   /** Transient, in-memory status text for the current agent turn. Not persisted. */
   activityText?: string;
+  /** Successful single-Agent task result. Missing on captures from older releases. */
+  agentResult?: AgentTaskResult | null;
 }
 
 export interface Item {

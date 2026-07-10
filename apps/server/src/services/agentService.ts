@@ -8,6 +8,7 @@ import {
 } from "@tutti-os/agent-acp-kit/tutti";
 import type { AgentProvider, AgentProvidersResult } from "@omni-catcher/shared";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
+import type { ISkillRegistryService } from "./skillRegistryService.js";
 
 export interface AgentRunResult {
   text: string;
@@ -47,6 +48,8 @@ export function normalizeProvider(value: unknown): string {
 
 export class AgentService implements IAgentService {
   constructor(
+    private readonly skills: ISkillRegistryService,
+    private readonly cwd: string,
     private readonly agents: TuttiAgentAppRuntime = createTuttiAgentAppRuntime(),
   ) {}
 
@@ -92,7 +95,7 @@ export class AgentService implements IAgentService {
 
     const catalog = await this.agents.getProviderCatalog({
       preferredProviderId: normalizeProvider(preferred),
-      composer: { cwd: agentCwd() },
+      composer: { cwd: this.cwd },
     });
     const provider = catalog.selectedProviderId;
     if (!provider) throw new Error("no agent provider is available");
@@ -103,15 +106,17 @@ export class AgentService implements IAgentService {
     const runId = randomUUID();
     await callbacks?.onStarted?.(runId, provider);
     const output: string[] = [];
+    const skillManifest = await this.skills.loadAll();
 
     for await (const event of this.agents.run({
       providerId: provider,
       runId,
-      localCwd: agentCwd(),
+      localCwd: this.cwd,
       prompt,
       model,
       timeoutMs,
       metadata: { title },
+      skillManifest,
     })) {
       if (await callbacks?.isCanceled?.()) {
         await this.agents.cancel(runId);
@@ -147,14 +152,10 @@ export class AgentService implements IAgentService {
     const normalized = normalizeProvider(provider);
     const catalog = await this.agents.getProviderCatalog({
       preferredProviderId: normalized,
-      composer: { cwd: agentCwd() },
+      composer: { cwd: this.cwd },
     });
     return catalog.providers.find((entry) => entry.id === normalized);
   }
-}
-
-function agentCwd() {
-  return process.env.TUTTI_APP_DATA_DIR?.trim() || process.cwd();
 }
 
 function activityFromAgentEvent(event: AgentEvent): string | null {

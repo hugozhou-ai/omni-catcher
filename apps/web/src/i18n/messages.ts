@@ -142,6 +142,14 @@ export interface Messages {
   cancel: string;
   legacyMergePreview: string;
   libraryItemCount: string;
+  agentResult: string;
+  agentCompleted: string;
+  purposeCreate: string;
+  purposeOrganize: string;
+  purposeQuery: string;
+  changedFiles: string;
+  noChangedFiles: string;
+  done: string;
 }
 
 export function normalizeLocale(value: string | null | undefined): Locale {

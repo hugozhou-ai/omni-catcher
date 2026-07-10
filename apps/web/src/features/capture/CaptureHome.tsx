@@ -16,6 +16,7 @@ import { Spinner } from "../../components/Spinner.js";
 import { Select } from "../../components/Select.js";
 import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
+import { AgentResultCard } from "./AgentResultCard.js";
 import { showToast } from "../../platform/toast.js";
 
 type Phase = "idle" | "processing" | "review";
@@ -267,7 +268,11 @@ export function CaptureHome(): ReactNode {
         ) : null}
 
         {phase === "review" && activeCapture ? (
-          <DecisionCard capture={activeCapture} onDone={reset} />
+          activeCapture.agentResult ? (
+            <AgentResultCard capture={activeCapture} onDone={reset} />
+          ) : (
+            <DecisionCard capture={activeCapture} onDone={reset} />
+          )
         ) : null}
 
         {phase === "idle" ? (

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "tutti.app.cli.v1",
   "scope": "omni-catcher",
-  "description": "Capture content and manage classified notes, bookmarks, and todos.",
+  "description": "Let one Agent capture, organize, and query local Markdown notes, bookmarks, and todos.",
   "documentation": {
     "file": "COMMANDS.md"
   },
@@ -9,7 +9,7 @@
     {
       "path": ["capture"],
       "summary": "Capture content",
-      "description": "Capture raw text or a URL. Classification runs asynchronously; poll with get.",
+      "description": "Send raw text or a URL to the Omni Catcher Agent. The Agent chooses skills and works asynchronously; poll with get.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -103,6 +103,7 @@
           "columns": [
             { "key": "id", "label": "ID" },
             { "key": "status", "label": "Status" },
+            { "key": "purpose", "label": "Purpose" },
             { "key": "intent", "label": "Intent" },
             { "key": "title", "label": "Title" },
             { "key": "created", "label": "Created" }
@@ -119,7 +120,7 @@
     {
       "path": ["confirm"],
       "summary": "Confirm a capture",
-      "description": "Confirm a classified capture and write it to disk.",
+      "description": "Acknowledge a completed Agent result, or confirm and save a rule-based review when the Agent failed.",
       "inputSchema": {
         "type": "object",
         "properties": {

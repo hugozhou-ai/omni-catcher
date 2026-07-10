@@ -10,6 +10,7 @@ export interface AppConfig {
   dataDir: string;
   logDir: string;
   promptsDir: string;
+  skillsDir: string;
   webDist: string;
   workspaceId: string;
   workspaceName: string;
@@ -40,6 +41,9 @@ export function loadConfig(): AppConfig {
     promptsDir: process.env.OMNI_PROMPTS_DIR
       ? resolve(process.env.OMNI_PROMPTS_DIR)
       : resolve(packageDir, "prompts"),
+    skillsDir: process.env.OMNI_SKILLS_DIR
+      ? resolve(process.env.OMNI_SKILLS_DIR)
+      : resolve(packageDir, "skills"),
     webDist: process.env.OMNI_WEB_DIST ? resolve(process.env.OMNI_WEB_DIST) : resolve(packageDir, "dist"),
     workspaceId: process.env.TUTTI_WORKSPACE_ID || "dev",
     workspaceName: process.env.TUTTI_WORKSPACE_NAME || process.env.TUTTI_WORKSPACE_ID || "Dev",

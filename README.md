@@ -1,28 +1,26 @@
 # Omni Catcher
 
-A Tutti workspace app. Capture anything — an article, links, or todos — and a Tutti
-agent classifies the intent (note / bookmark / todo / mixed). After you confirm, the
-result is saved as a local Markdown file you can browse, search, and reference with
-`@omni-catcher`.
+A Tutti workspace app with one working Agent. Enter a request and the Agent decides whether
+to create content, organize the existing library, or answer from it. The Agent selects from
+the app's note, bookmark, and todo skills and works directly with local Markdown that can be
+browsed, searched, and referenced with `@omni-catcher`.
 
 ## Product philosophy
 
 Omni Catcher is an intelligent sticky note for a workspace: the user should only need
-one habit — paste anything into the capture box. The app then uses an Agent to infer
-what the captured material wants to become, shows the decision clearly, and writes the
-confirmed result into local Markdown.
+one habit — type anything into the capture box. The app gives one Agent all Omni Catcher
+skills; the Agent infers the purpose, selects the skills, and completes the request against
+the local Markdown library.
 
 The central design idea is **capture first, organize second**:
 
 - **One super entry point** — Capture is the primary workflow, not one tab among many.
   Articles, papers, links, tasks, and mixed notes all start from the same input.
-- **Agent as classifier, user as editor** — the Agent proposes an intent, title,
-  summary, tags, split items, or todo upgrade; the user can inspect the detail, change
-  the intent, and confirm or discard.
+- **One Agent owns routing and execution** — the app registers all built-in skills for one
+  run. The Agent decides when to create, organize, or query and which content skills to use.
 - **Links are content, not automatically bookmarks** — a URL may be an article, paper,
-  tutorial, product, tool, dataset, or task reference. The server enriches URLs with
-  page title/description/excerpt before classification so the Agent can decide based on
-  meaning rather than URL shape alone.
+  tutorial, product, tool, dataset, or task reference. The Agent inspects the content and
+  may use its normal shell or scripts when more context is needed.
 - **Knowledge should consolidate when possible** — article and paper captures are meant
   to become notes, preferably organized into an existing document at the right place
   when enough context is available. Existing content should stay visible and subdued;
@@ -41,7 +39,7 @@ Saved content is organized later in the secondary **Library** area.
 ```text
 ┌─────────┬─────────────────────────────────────────┐
 │ Capture │  Capture home (default, primary)        │
-│ Library │  · paste → Agent classifies → confirm   │
+│ Library │  · request → Agent selects skills → result│
 │         │  · library groups saved results         │
 └─────────┴─────────────────────────────────────────┘
 ```
@@ -50,7 +48,7 @@ Saved content is organized later in the secondary **Library** area.
 
 | Icon | View | Purpose |
 |------|------|---------|
-| Capture | **Capture** | Primary entry point: paste content, run Agent classification, confirm once |
+| Capture | **Capture** | Primary entry point: create, organize, or query through one Agent |
 | Grid | **Library** | Secondary organization area for all saved results |
 
 The sidebar can collapse into an icon-only rail. Expanded mode shows the full Omni
@@ -61,17 +59,16 @@ Catcher wordmark; collapsed mode uses the compact app icon.
 There is no chat-style conversation UI — each capture is a single round trip:
 
 1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
-2. **Processing** — a quote of what you sent, spinner, latest Agent activity, and a **Stop** action that cancels classification and restores the original input.
-3. **Review** — one **decision card** on the same screen: intent pills, editable title/tags, Agent summary, confirm or discard.
-   Related saved notes/bookmarks are included in the Agent prompt. The decision card shows an AI **save plan** (`new`, `merge`, or `collection`) with target document, optional insert heading, and editable Markdown preview. When a pasted paper or article matches an existing item, merge is suggested instead of creating a duplicate; collection mode creates or extends reading-summary notes.
+2. **Processing** — a quote of what you sent, spinner, latest Agent activity, and a **Stop** action that cancels the run and restores the original input. Runs are serialized because the Agent edits the shared Markdown library directly.
+3. **Result** — create/organize requests show the Agent summary and changed Markdown paths; query requests render the answer. Acknowledging the result returns to the input.
 4. **Done** — returns to idle with an empty input.
 
-If the Agent is unavailable, the card falls back to rule-based classification and shows a short “needs review” notice; you still pick the intent manually.
+If the Agent fails before returning a valid result, the existing rule-based review remains available for backward-compatible manual capture. Any Markdown already written by a failed/canceled Agent run remains the source of truth and the index is rebuilt.
 
 ### Library
 
 - **All** — card grid across saved notes, bookmarks, and todos.
-- **Notes / Bookmarks** — card grid with `summary` from classification (stored in frontmatter and `index.jsonl`). Click a card to preview the Markdown body rendered with the app Markdown viewer; delete removes both the Markdown source file and index entry.
+- **Notes / Bookmarks** — card grid with `summary` from Markdown frontmatter and `index.jsonl`. Click a card to preview the Markdown body rendered with the app Markdown viewer; delete removes both the Markdown source file and index entry.
 - **Todos** — same card layout, plus **urgency** and **importance** (1–3). Toolbar supports filter/sort and a **List ↔ Matrix** toggle:
   - **List** — filter by urgency/importance, sort by newest / urgency / importance.
   - **Matrix** — Eisenhower 2×2 (important·urgent, important·not urgent, …). Drag a card into a quadrant to update its urgency/importance (`PATCH /api/items/:id`).
@@ -96,7 +93,8 @@ omni-catcher/
 │   │       └── services/        # domain services
 │   │           ├── tuttiCliService.ts      # $TUTTI_CLI browser/issue invocation
 │   │           ├── agentService.ts         # agent-acp-kit catalog + streamed run
-│   │           ├── classificationService.ts# rule preview + JSON parse
+│   │           ├── skillRegistryService.ts # loads every app-owned skill for one Agent
+│   │           ├── classificationService.ts# result validation + legacy rule preview
 │   │           ├── storageService.ts       # markdown + index.jsonl (+ mutex)
 │   │           ├── captureService.ts       # capture lifecycle orchestration
 │   │           ├── referenceService.ts     # @mention file search
@@ -126,6 +124,7 @@ omni-catcher/
 ├── tutti.cli.json              # CLI manifest (scope: omni-catcher)
 ├── bootstrap.sh                # production launcher (node server/server.js)
 ├── prompts/                    # agent prompt templates
+├── skills/                     # intent, purpose, note/bookmark/todo skills
 └── locales/zh-CN/manifest.json # localized manifest metadata
 ```
 
@@ -151,8 +150,8 @@ pnpm install:tutti  # same as node scripts/install-tutti-app.mjs (see below)
 ```
 
 Open http://localhost:5173 to exercise the sidebar + capture flow locally. Without a
-locally discoverable agent provider, classification degrades to a rule-based fallback so
-the UI stays usable. `TUTTI_CLI` remains optional for browser enrichment and issue creation.
+locally discoverable agent provider, capture degrades to the legacy rule-based review so
+the UI stays usable. `TUTTI_CLI` remains optional for issue creation.
 
 ## How it runs inside Tutti
 
@@ -162,16 +161,18 @@ the UI stays usable. `TUTTI_CLI` remains optional for browser enrichment and iss
    `/tutti/references/{list,search}` endpoints.
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
-There is no lightweight LLM endpoint in Tutti, so classification streams a local agent run
+There is no lightweight LLM endpoint in Tutti, so each request streams one local Agent run
 through the server-only `@tutti-os/agent-acp-kit/tutti` facade. The facade resolves the
-app-scoped provider catalog, selected provider, and composer model. The run executes on a
-background task; `POST /api/capture` returns
+provider and model; the app registers every skill in `skills/` through `skillManifest` and
+uses `$TUTTI_APP_DATA_DIR` as the Agent cwd. The Agent chooses skills and directly reads or
+edits `notes/`, `bookmarks/`, and `todos/`; the server rebuilds `index.jsonl` afterward.
+The run executes on a background task; `POST /api/capture` returns
 immediately and the UI polls for the result and latest in-memory activity text. Processing
 captures can be canceled with `POST /api/captures/:id/cancel`, which cancels the active
 agent session when one exists, removes the pending capture, and returns the original
 content for retry. Failed captures can be retried in place with
 `POST /api/captures/:id/retry`, which resets the capture to `classifying` and starts a new
-background classification run. Completion comes directly from the normalized agent event
+background Agent run. Completion comes directly from the normalized agent event
 stream, so the app does not poll Tutti agent sessions.
 
 ## Install & debug in Tutti
@@ -222,13 +223,13 @@ Confirm the live path from the running server: `curl :<port>/api/context` and re
 instead; `scripts/install-tutti-app.mjs` now backs up/restores against the richest
 source and writes back to the current installation data dir.
 
-The server logs the agent provider, classification failures, and the runtime port
+The server logs the Agent provider, purpose/result metadata, failures, and the runtime port
 (`[omni-catcher] listening on 127.0.0.1:<port>`) — hit that port directly to bypass the
 daemon while debugging (e.g. `curl :<port>/api/items`).
 
 ### Choosing the agent provider
 
-Classification uses the daemon's default provider unless you pick one in the capture
+The working Agent uses the daemon's default provider unless you pick one in the capture
 home **Agent** selector (bottom of the input area). If the default (often codex) is
 rate-limited, choose an available provider such as `claude-code`; the preference is
 stored per workspace in `$TUTTI_APP_DATA_DIR/settings.json` (`agentProvider`).

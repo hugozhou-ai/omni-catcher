@@ -94,8 +94,8 @@ omni-catcher/
 │   │       ├── registry.ts      # composition root (ServiceCollection)
 │   │       ├── http/routes.ts   # /api, /tutti/cli, /tutti/references
 │   │       └── services/        # domain services
-│   │           ├── tuttiCliService.ts      # $TUTTI_CLI invocation
-│   │           ├── agentService.ts         # provider start/poll/session-summary
+│   │           ├── tuttiCliService.ts      # $TUTTI_CLI browser/issue invocation
+│   │           ├── agentService.ts         # agent-acp-kit catalog + streamed run
 │   │           ├── classificationService.ts# rule preview + JSON parse
 │   │           ├── storageService.ts       # markdown + index.jsonl (+ mutex)
 │   │           ├── captureService.ts       # capture lifecycle orchestration
@@ -150,8 +150,9 @@ pnpm package:tutti  # produce build/tutti-app/package (the runnable Tutti packag
 pnpm install:tutti  # same as node scripts/install-tutti-app.mjs (see below)
 ```
 
-Open http://localhost:5173 to exercise the sidebar + capture flow locally. Without a real
-`TUTTI_CLI`, agent classification degrades to a rule-based fallback so the UI stays usable.
+Open http://localhost:5173 to exercise the sidebar + capture flow locally. Without a
+locally discoverable agent provider, classification degrades to a rule-based fallback so
+the UI stays usable. `TUTTI_CLI` remains optional for browser enrichment and issue creation.
 
 ## How it runs inside Tutti
 
@@ -161,18 +162,17 @@ Open http://localhost:5173 to exercise the sidebar + capture flow locally. Witho
    `/tutti/references/{list,search}` endpoints.
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
-There is no lightweight LLM endpoint in Tutti, so classification uses a full agent session
-(`codex start`, `claude start`, or `gemini start` → poll `agent get` for failures →
-read `agent session-summary` for the completed assistant turn). It runs on a
+There is no lightweight LLM endpoint in Tutti, so classification streams a local agent run
+through the server-only `@tutti-os/agent-acp-kit/tutti` facade. The facade resolves the
+app-scoped provider catalog, selected provider, and composer model. The run executes on a
 background task; `POST /api/capture` returns
 immediately and the UI polls for the result and latest in-memory activity text. Processing
 captures can be canceled with `POST /api/captures/:id/cancel`, which cancels the active
 agent session when one exists, removes the pending capture, and returns the original
 content for retry. Failed captures can be retried in place with
 `POST /api/captures/:id/retry`, which resets the capture to `classifying` and starts a new
-background classification run. ACP providers (e.g. claude-code) keep the session open after a turn, so
-completion is detected from the newest `completed` assistant message rather than the
-session status.
+background classification run. Completion comes directly from the normalized agent event
+stream, so the app does not poll Tutti agent sessions.
 
 ## Install & debug in Tutti
 

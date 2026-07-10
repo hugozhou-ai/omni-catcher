@@ -19,7 +19,7 @@ export function createServices(config: AppConfig): IInstantiationService {
 
   const log = new ConsoleLogService("omni-catcher");
   const cli = new TuttiCliService(log);
-  const agent = new AgentService(cli);
+  const agent = new AgentService();
   const classification = new ClassificationService(config, cli, log);
   const storage = new StorageService(config);
   const issues = new IssueService(cli);

@@ -47,14 +47,15 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
 - Deleting a library item removes its Markdown file and rewrites `index.jsonl`; source
   of truth remains the Markdown directory, so `POST /api/rebuild-index` can recover the index.
 
-## Agent integration (via `$TUTTI_CLI`)
+## Agent integration
 
-There is no lightweight LLM endpoint; classification uses a full agent session
+There is no lightweight LLM endpoint; classification uses the server-only
+`@tutti-os/agent-acp-kit/tutti` app runtime facade
 (`AgentService` in `apps/server/src/services/agentService.ts`):
 
-1. provider-specific start (`codex start`, `claude start`, or `gemini start`) with `--cwd $TUTTI_APP_DATA_DIR --title ... --prompt <classify.md> --visible` → `session.id`
-2. poll `agent get --session-id <id>` until a terminal status
-3. `agent session-summary --session-id <id> --limit 80` → final assistant text → strict JSON
+1. resolve the app-scoped provider catalog and selected provider
+2. use the selected provider's composer model
+3. stream one local agent run and parse its final assistant text as strict JSON
 
 `CaptureService.create` returns immediately and runs classification on a background task; the
 UI polls `GET /api/captures`. While a capture is running, `CaptureService` keeps only the
@@ -64,8 +65,8 @@ into API responses; it is not written to `inbox/<capId>.json`. `POST
 pending capture, and returns the original content so the UI can restore the input. On
 agent failure/timeout the capture falls back to a rule-based classification with `status:
 needs_review`; `POST /api/captures/:id/retry` resets that same capture to `classifying`
-and starts a new background classification run. Provider list comes from `agent providers`
-filtered to available `codex` / `claude-code` / `gemini`. The optional `todo` → issue
+and starts a new background classification run. Provider and model selection comes from
+the facade's app-scoped catalog. The optional `todo` → issue
 upgrade (`IssueService`) calls `issue topic list` then `issue create`; `issue` is a
 reserved daemon scope this app only calls, never exposes.
 

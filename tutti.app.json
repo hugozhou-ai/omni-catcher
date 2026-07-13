@@ -3,7 +3,7 @@
   "appId": "omni-catcher",
   "version": "0.2.81",
   "name": "Omni Catcher",
-  "description": "Capture anything, let an agent classify it, confirm, and save as local Markdown notes, bookmarks, and todos.",
+  "description": "Use one Agent to create, organize, and query local Markdown notes, bookmarks, and todos.",
   "icon": {
     "type": "asset",
     "src": "icon.png"

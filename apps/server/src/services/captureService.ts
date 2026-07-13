@@ -12,7 +12,7 @@ import type {
   SavePlan,
 } from "@omni-catcher/shared";
 import type { AppConfig } from "../config.js";
-import { captureId, nowIso } from "../util.js";
+import { captureId, Mutex, nowIso } from "../util.js";
 import { resolveEffectiveSavePlan, withDeterministicSavePlan } from "../savePlanUtil.js";
 import type { IStorageService } from "./storageService.js";
 import { INTENT_DIRS } from "./storageService.js";
@@ -31,7 +31,7 @@ export interface ICaptureService {
 
 export const ICaptureService = createServiceIdentifier<ICaptureService>("captureService");
 
-const CLASSIFY_LOG_PREFIX = "capture-classify";
+const AGENT_LOG_PREFIX = "capture-agent";
 const CONFIRM_LOG_PREFIX = "capture-confirm";
 
 interface ActiveRunState {
@@ -43,6 +43,7 @@ interface ActiveRunState {
 
 export class CaptureService implements ICaptureService {
   private readonly activeRuns = new Map<string, ActiveRunState>();
+  private readonly agentWork = new Mutex();
 
   constructor(
     private readonly config: AppConfig,
@@ -67,6 +68,7 @@ export class CaptureService implements ICaptureService {
       createdAt: nowIso(),
       rulePreview: this.classification.rulePreview(text, link),
       classification: null,
+      agentResult: null,
       agentSessionId: null,
       agentProvider: null,
       error: null,
@@ -96,7 +98,7 @@ export class CaptureService implements ICaptureService {
     if (sessionId) {
       await this.agent.cancelSession(sessionId).catch((error) => {
         this.log.warn(
-          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          `${AGENT_LOG_PREFIX} ${JSON.stringify({
             event: "cancel-agent-failed",
             id,
             sessionId,
@@ -104,10 +106,11 @@ export class CaptureService implements ICaptureService {
           })}`,
         );
       });
+      await this.storage.rebuildIndex();
     }
     await this.storage.deleteCapture(id);
     this.log.info(
-      `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+      `${AGENT_LOG_PREFIX} ${JSON.stringify({
         event: "canceled",
         id,
         sessionId,
@@ -125,6 +128,7 @@ export class CaptureService implements ICaptureService {
       ...capture,
       status: "classifying",
       classification: null,
+      agentResult: null,
       agentSessionId: null,
       agentProvider: null,
       error: null,
@@ -133,7 +137,7 @@ export class CaptureService implements ICaptureService {
     await this.storage.writeCapture(next);
     this.activeRuns.set(id, { canceled: false, latestActivity: progressActivityText("preparing") });
     this.log.info(
-      `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+      `${AGENT_LOG_PREFIX} ${JSON.stringify({
         event: "retry",
         id,
         previousStatus: capture.status,
@@ -143,36 +147,27 @@ export class CaptureService implements ICaptureService {
     return this.withTransientState(next);
   }
 
-  private async classify(id: string): Promise<void> {
+  private classify(id: string): Promise<void> {
+    return this.agentWork.run(() => this.runAgentTask(id));
+  }
+
+  private async runAgentTask(id: string): Promise<void> {
     let capture = await this.storage.readCapture(id);
     if (!capture) return;
     try {
       try {
         const settings = await this.storage.readSettings();
         const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
-        await this.updateProgress(id, "finding_related");
-        if (this.isCanceled(id)) return;
-        const [relatedItems, existingTags] = await Promise.all([
-          this.storage.findRelatedItems(capture.content),
-          this.storage.listItems().then(collectExistingTags),
-        ]);
         await this.updateProgress(id, "preparing_context");
         if (this.isCanceled(id)) return;
-        const prompt = await this.classification.classifyPrompt(
-          capture.content,
-          relatedItems,
-          existingTags,
-          (progress) => this.updateProgress(id, progress),
-        );
+        const prompt = await this.classification.agentPrompt(capture.content);
         if (this.isCanceled(id)) return;
         this.log.info(
-          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          `${AGENT_LOG_PREFIX} ${JSON.stringify({
             event: "start",
             id,
             contentLength: capture.content.length,
             promptLength: prompt.length,
-            relatedCount: relatedItems.length,
-            existingTagCount: existingTags.length,
             preferredProvider: preferredProvider || "",
             timeoutMs: this.config.classifyTimeoutMs,
           })}`,
@@ -180,7 +175,7 @@ export class CaptureService implements ICaptureService {
         await this.updateProgress(id, "calling_agent");
         const outcome = await this.agent.runPrompt(
           prompt,
-          "Omni Catcher: classify",
+          "Omni Catcher",
           this.config.classifyTimeoutMs,
           preferredProvider,
           {
@@ -198,34 +193,35 @@ export class CaptureService implements ICaptureService {
         );
         if (this.isCanceled(id)) return;
         const parsed = this.classification.parseStrictJson(outcome.text) as Record<string, unknown>;
-        if (!parsed.source) parsed.source = "agent";
+        const agentResult = this.classification.normalizeAgentResult(parsed, capture.content);
         await this.updateProgress(id, "finalizing");
         if (this.isCanceled(id)) return;
+        if (agentResult.purpose !== "query") await this.storage.rebuildIndex();
         capture = (await this.storage.readCapture(id)) || capture;
         if (!capture || this.isCanceled(id)) return;
-        capture.classification = withDeterministicSavePlan(
-          this.classification.normalize(parsed, capture.content, relatedItems),
-        );
+        capture.agentResult = agentResult;
+        capture.classification = null;
         capture.agentSessionId = outcome.sessionId;
         capture.agentProvider = outcome.provider;
         capture.status = "classified";
         capture.error = null;
         delete capture.progress;
         this.log.info(
-          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
-            event: "classified",
+          `${AGENT_LOG_PREFIX} ${JSON.stringify({
+            event: "completed",
             id,
             sessionId: outcome.sessionId,
             provider: outcome.provider,
-            intent: capture.classification.primaryIntent,
-            confidence: capture.classification.confidence,
-            saveMode: capture.classification.savePlan?.mode || "",
+            purpose: agentResult.purpose,
+            intents: agentResult.intents,
+            changedFileCount: agentResult.changedFiles.length,
+            answerLength: agentResult.answer.length,
           })}`,
         );
       } catch (error) {
         if (this.isCanceled(id)) return;
         this.log.warn(
-          `${CLASSIFY_LOG_PREFIX} ${JSON.stringify({
+          `${AGENT_LOG_PREFIX} ${JSON.stringify({
             event: "failed",
             id,
             error: (error as Error).message,
@@ -234,6 +230,15 @@ export class CaptureService implements ICaptureService {
             timeoutMs: this.config.classifyTimeoutMs,
           })}`,
         );
+        await this.storage.rebuildIndex().catch((rebuildError) => {
+          this.log.warn(
+            `${AGENT_LOG_PREFIX} ${JSON.stringify({
+              event: "rebuild-after-failure-failed",
+              id,
+              error: (rebuildError as Error).message,
+            })}`,
+          );
+        });
         capture = (await this.storage.readCapture(id)) || capture;
         capture.progress = "fallback";
         const fallbackRaw = { ...capture.rulePreview, source: "rule-fallback" } as unknown as Record<string, unknown>;
@@ -291,6 +296,20 @@ export class CaptureService implements ICaptureService {
   ): Promise<ConfirmResult> {
     const capture = await this.storage.readCapture(id);
     if (!capture) throw new Error(`capture ${id} was not found`);
+    if (capture.agentResult) {
+      const changed = new Set(capture.agentResult.changedFiles);
+      const items = (await this.storage.listItems()).filter((item) => changed.has(item.path));
+      await this.storage.deleteCapture(id);
+      this.log.info(
+        `${CONFIRM_LOG_PREFIX} ${JSON.stringify({
+          event: "completed-agent-result",
+          captureId: id,
+          purpose: capture.agentResult.purpose,
+          itemCount: items.length,
+        })}`,
+      );
+      return { items, issue: null };
+    }
     const classification =
       capture.classification ||
       this.classification.normalize(
@@ -469,41 +488,20 @@ function mergeTags(left: unknown, right: unknown): string[] {
   return result.slice(0, 5);
 }
 
-function collectExistingTags(items: Item[]): string[] {
-  const counts = new Map<string, { tag: string; count: number }>();
-  for (const item of items) {
-    for (const rawTag of item.tags || []) {
-      const tag = String(rawTag || "").trim();
-      if (!tag) continue;
-      const key = tag.toLowerCase();
-      const current = counts.get(key);
-      if (current) {
-        current.count += 1;
-      } else {
-        counts.set(key, { tag, count: 1 });
-      }
-    }
-  }
-  return [...counts.values()]
-    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
-    .slice(0, 120)
-    .map((entry) => `"${entry.tag}" (used ${entry.count} times)`);
-}
-
 function progressActivityText(progress: CaptureProgress): string {
   switch (progress) {
     case "preparing":
-      return "Preparing content for classification";
+      return "Preparing the Agent request";
     case "finding_related":
       return "Searching related saved notes and bookmarks";
     case "preparing_context":
-      return "Building classification context";
+      return "Loading Omni Catcher skills";
     case "fetching_pages":
       return "Fetching linked page content";
     case "browser_pages":
       return "Analyzing pages in the browser";
     case "finalizing":
-      return "Organizing classification results";
+      return "Rebuilding the Markdown library index";
     case "fallback":
       return "Agent unavailable; using rule-based preview";
     default:

@@ -5,8 +5,9 @@ Scope: `omni-catcher`. Invoke via the Tutti CLI, e.g. `tutti --json omni-catcher
 ## Commands
 
 - `capture --content "..."` / `capture --url "..."`
-  Capture content. Classification runs asynchronously; the response returns the capture
-  `id` and `status`. Poll with `get --id <id>` or confirm in the UI.
+  Send a request to the single Omni Catcher Agent. The Agent chooses whether to create,
+  organize, or query, selects its registered skills, and works asynchronously. The response
+  returns the capture `id` and `status`; poll with `get --id <id>`.
 
 - `list [--type note|bookmark|todo]`
   List confirmed items (table).
@@ -18,14 +19,15 @@ Scope: `omni-catcher`. Invoke via the Tutti CLI, e.g. `tutti --json omni-catcher
   List captures awaiting confirmation (table).
 
 - `confirm --id <id> [--intent note|bookmark|todo]`
-  Confirm a classified capture and write it to disk.
+  Acknowledge a completed Agent result. If the Agent failed and the capture uses the
+  rule-based review, confirm writes that fallback result to disk.
 
 - `search --query "..."`
   Full-text search across saved items (table).
 
 ## Notes
 
-- Classification and the optional summary use a Tutti agent session, so `capture` does not
-  block on the agent; it returns once the capture is queued.
+- One Tutti Agent session receives every app-owned skill and directly reads or edits Markdown
+  under the app data directory. `capture` returns once the request is queued.
 - Confirmed items are Markdown files under the app data directory and are referenceable via
   `@omni-catcher` mentions.

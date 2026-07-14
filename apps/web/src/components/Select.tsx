@@ -7,14 +7,8 @@ export type SelectOption<T extends string | number> = {
   disabled?: boolean;
 };
 
-const EMPTY_VALUE = "__app_select_empty__";
-
 function toRadixValue(value: string): string {
-  return value === "" ? EMPTY_VALUE : value;
-}
-
-function fromRadixValue(value: string): string {
-  return value === EMPTY_VALUE ? "" : value;
+  return JSON.stringify([value]);
 }
 
 export function Select<T extends string | number>(props: {
@@ -57,8 +51,9 @@ export function Select<T extends string | number>(props: {
         value={toRadixValue(stringValue)}
         disabled={disabled}
         onValueChange={(next) => {
-          const decoded = fromRadixValue(next);
-          const match = options.find((option) => String(option.value) === decoded);
+          const match = options.find(
+            (option) => toRadixValue(String(option.value)) === next,
+          );
           if (match) onChange(match.value);
         }}
       >

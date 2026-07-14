@@ -1,16 +1,11 @@
 import type { AgentTarget } from "@omni-catcher/shared";
-
-export interface AgentTargetOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-}
+import type { SelectOption } from "./Select.js";
 
 export function buildAgentTargetOptions(
   agents: AgentTarget[],
   preferred: string,
   labels: { defaultOption: string; unavailable: string },
-): AgentTargetOption[] {
+): SelectOption<string>[] {
   return [
     { value: "", label: labels.defaultOption },
     ...(preferred && !agents.some((agent) => agent.agentTargetId === preferred)

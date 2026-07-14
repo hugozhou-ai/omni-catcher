@@ -17,7 +17,10 @@ import { resolveEffectiveSavePlan, withDeterministicSavePlan } from "../savePlan
 import type { IStorageService } from "./storageService.js";
 import { INTENT_DIRS } from "./storageService.js";
 import type { IClassificationService } from "./classificationService.js";
-import type { IAgentService } from "./agentService.js";
+import {
+  type IAgentService,
+} from "./agentService.js";
+import { loadConfiguredAgentSettings } from "./agentSettingsService.js";
 import type { IIssueService } from "./issueService.js";
 
 export interface ICaptureService {
@@ -37,7 +40,8 @@ const CONFIRM_LOG_PREFIX = "capture-confirm";
 interface ActiveRunState {
   canceled: boolean;
   latestActivity?: string;
-  provider?: string;
+  agentTargetId?: string;
+  providerId?: string;
   sessionId?: string;
 }
 
@@ -70,7 +74,8 @@ export class CaptureService implements ICaptureService {
       classification: null,
       agentResult: null,
       agentSessionId: null,
-      agentProvider: null,
+      agentTargetId: null,
+      providerId: null,
       error: null,
       progress: "preparing",
     };
@@ -130,10 +135,12 @@ export class CaptureService implements ICaptureService {
       classification: null,
       agentResult: null,
       agentSessionId: null,
-      agentProvider: null,
+      agentTargetId: null,
+      providerId: null,
       error: null,
       progress: "preparing",
     };
+    delete next.agentProvider;
     await this.storage.writeCapture(next);
     this.activeRuns.set(id, { canceled: false, latestActivity: progressActivityText("preparing") });
     this.log.info(
@@ -156,8 +163,15 @@ export class CaptureService implements ICaptureService {
     if (!capture) return;
     try {
       try {
-        const settings = await this.storage.readSettings();
-        const preferredProvider = String(settings.agentProvider || "").trim() || undefined;
+        const { agentTargetId: preferredAgentTargetId } = await loadConfiguredAgentSettings(
+          this.storage,
+          this.agent,
+          (error) => {
+            this.log.warn(
+              `${AGENT_LOG_PREFIX} legacy settings migration failed: ${String(error)}`,
+            );
+          },
+        );
         await this.updateProgress(id, "preparing_context");
         if (this.isCanceled(id)) return;
         const prompt = await this.classification.agentPrompt(capture.content);
@@ -168,7 +182,7 @@ export class CaptureService implements ICaptureService {
             id,
             contentLength: capture.content.length,
             promptLength: prompt.length,
-            preferredProvider: preferredProvider || "",
+            preferredAgentTargetId: preferredAgentTargetId || "",
             timeoutMs: this.config.classifyTimeoutMs,
           })}`,
         );
@@ -177,13 +191,14 @@ export class CaptureService implements ICaptureService {
           prompt,
           "Omni Catcher",
           this.config.classifyTimeoutMs,
-          preferredProvider,
+          preferredAgentTargetId,
           {
             isCanceled: () => this.isCanceled(id),
-            onStarted: (sessionId, provider) => {
+            onStarted: (sessionId, agentTargetId, providerId) => {
               const state = this.ensureActiveRun(id);
               state.sessionId = sessionId;
-              state.provider = provider;
+              state.agentTargetId = agentTargetId;
+              state.providerId = providerId;
             },
             onActivity: (activityText) => {
               const state = this.ensureActiveRun(id);
@@ -202,7 +217,9 @@ export class CaptureService implements ICaptureService {
         capture.agentResult = agentResult;
         capture.classification = null;
         capture.agentSessionId = outcome.sessionId;
-        capture.agentProvider = outcome.provider;
+        capture.agentTargetId = outcome.agentTargetId;
+        capture.providerId = outcome.providerId;
+        delete capture.agentProvider;
         capture.status = "classified";
         capture.error = null;
         delete capture.progress;
@@ -211,7 +228,8 @@ export class CaptureService implements ICaptureService {
             event: "completed",
             id,
             sessionId: outcome.sessionId,
-            provider: outcome.provider,
+            agentTargetId: outcome.agentTargetId,
+            providerId: outcome.providerId,
             purpose: agentResult.purpose,
             intents: agentResult.intents,
             changedFileCount: agentResult.changedFiles.length,
@@ -226,7 +244,8 @@ export class CaptureService implements ICaptureService {
             id,
             error: (error as Error).message,
             sessionId: this.activeRuns.get(id)?.sessionId || "",
-            provider: this.activeRuns.get(id)?.provider || "",
+            agentTargetId: this.activeRuns.get(id)?.agentTargetId || "",
+            providerId: this.activeRuns.get(id)?.providerId || "",
             timeoutMs: this.config.classifyTimeoutMs,
           })}`,
         );

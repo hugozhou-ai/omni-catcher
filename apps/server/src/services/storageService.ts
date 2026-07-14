@@ -1,4 +1,5 @@
-import { mkdir, readFile, readdir, writeFile, appendFile, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, readdir, writeFile, appendFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { URL } from "node:url";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
@@ -31,6 +32,9 @@ export interface IStorageService {
   init(): Promise<void>;
   readSettings(): Promise<Record<string, unknown>>;
   writeSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>>;
+  updateSettings(
+    update: (settings: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
   readCapture(id: string): Promise<Capture | null>;
   writeCapture(capture: Capture): Promise<Capture>;
   listCaptures(): Promise<Capture[]>;
@@ -98,8 +102,29 @@ export class StorageService implements IStorageService {
   }
 
   async writeSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
-    await this.mutex.run(() => writeFile(this.settingsPath, JSON.stringify(settings, null, 2), "utf-8"));
+    await this.mutex.run(() => this.writeSettingsFile(settings));
     return settings;
+  }
+
+  async updateSettings(
+    update: (settings: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this.mutex.run(async () => {
+      const current = await this.readSettings();
+      const next = update(current);
+      await this.writeSettingsFile(next);
+      return next;
+    });
+  }
+
+  private async writeSettingsFile(settings: Record<string, unknown>): Promise<void> {
+    const temporaryPath = `${this.settingsPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, JSON.stringify(settings, null, 2), "utf-8");
+      await rename(temporaryPath, this.settingsPath);
+    } finally {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+    }
   }
 
   // -- captures ------------------------------------------------------------
@@ -110,7 +135,7 @@ export class StorageService implements IStorageService {
 
   async readCapture(id: string): Promise<Capture | null> {
     try {
-      return JSON.parse(await readFile(this.capturePath(id), "utf-8")) as Capture;
+      return normalizeStoredCapture(JSON.parse(await readFile(this.capturePath(id), "utf-8")));
     } catch {
       return null;
     }
@@ -135,7 +160,9 @@ export class StorageService implements IStorageService {
     const captures: Capture[] = [];
     for (const name of names) {
       try {
-        captures.push(JSON.parse(await readFile(join(this.inboxDir, name), "utf-8")) as Capture);
+        captures.push(
+          normalizeStoredCapture(JSON.parse(await readFile(join(this.inboxDir, name), "utf-8"))),
+        );
       } catch {
         /* skip corrupt */
       }
@@ -424,7 +451,10 @@ export class StorageService implements IStorageService {
       confirmedAt,
     };
     if (capture.agentSessionId) nextMeta.agentSessionId = capture.agentSessionId;
-    if (capture.agentProvider) nextMeta.agentProvider = capture.agentProvider;
+    if (capture.agentTargetId) nextMeta.agentTargetId = capture.agentTargetId;
+    else if (capture.providerId || capture.agentProvider) delete nextMeta.agentTargetId;
+    if (capture.providerId) nextMeta.providerId = capture.providerId;
+    else if (capture.agentProvider) nextMeta.providerId = capture.agentProvider;
     const nextBody = skipBodyInsert
       ? body
       : insertHeading
@@ -504,7 +534,9 @@ export class StorageService implements IStorageService {
     if (importance !== undefined) meta.importance = importance;
     if (intent === "todo") meta.todoProgress = "todo";
     if (capture.agentSessionId) meta.agentSessionId = capture.agentSessionId;
-    if (capture.agentProvider) meta.agentProvider = capture.agentProvider;
+    if (capture.agentTargetId) meta.agentTargetId = capture.agentTargetId;
+    if (capture.providerId) meta.providerId = capture.providerId;
+    else if (capture.agentProvider) meta.providerId = capture.agentProvider;
     const document = buildFrontmatter(meta) + "\n\n" + buildBody(intent, effective, content, edits);
     const entry: Item = {
       id: itemId,
@@ -550,6 +582,15 @@ export class StorageService implements IStorageService {
     );
     return entries;
   }
+}
+
+function normalizeStoredCapture(value: unknown): Capture {
+  const capture = value as Capture;
+  return {
+    ...capture,
+    agentTargetId: capture.agentTargetId ?? null,
+    providerId: capture.providerId ?? capture.agentProvider ?? null,
+  };
 }
 
 // -- frontmatter + body ----------------------------------------------------

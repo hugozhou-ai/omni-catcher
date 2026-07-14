@@ -1,20 +1,15 @@
 import type { ReactNode } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
+import {
+  findSelectOptionByRadixValue,
+  toRadixSelectValue,
+} from "./selectValue.js";
 
 export type SelectOption<T extends string | number> = {
   value: T;
   label: string;
+  disabled?: boolean;
 };
-
-const EMPTY_VALUE = "__app_select_empty__";
-
-function toRadixValue(value: string): string {
-  return value === "" ? EMPTY_VALUE : value;
-}
-
-function fromRadixValue(value: string): string {
-  return value === EMPTY_VALUE ? "" : value;
-}
 
 export function Select<T extends string | number>(props: {
   value: T;
@@ -42,8 +37,8 @@ export function Select<T extends string | number>(props: {
   const classes = ["app-select", compact ? "compact" : "", inline ? "inline" : "", className]
     .filter(Boolean)
     .join(" ");
-  const stringValue = String(value);
-  const selected = options.find((option) => String(option.value) === stringValue);
+  const radixValue = toRadixSelectValue(value);
+  const selected = findSelectOptionByRadixValue(options, radixValue);
 
   return (
     <div
@@ -53,17 +48,16 @@ export function Select<T extends string | number>(props: {
     >
       {label ? <span className="app-select-label">{label}</span> : null}
       <SelectPrimitive.Root
-        value={toRadixValue(stringValue)}
+        value={radixValue}
         disabled={disabled}
         onValueChange={(next) => {
-          const decoded = fromRadixValue(next);
-          const match = options.find((option) => String(option.value) === decoded);
+          const match = findSelectOptionByRadixValue(options, next);
           if (match) onChange(match.value);
         }}
       >
         <SelectPrimitive.Trigger className="app-select-trigger" aria-label={label}>
-          <SelectPrimitive.Value placeholder={selected?.label ?? stringValue}>
-            {selected?.label ?? stringValue}
+          <SelectPrimitive.Value placeholder={selected?.label ?? String(value)}>
+            {selected?.label ?? String(value)}
           </SelectPrimitive.Value>
           <SelectPrimitive.Icon asChild>
             <span className="app-select-chevron" aria-hidden="true" />
@@ -74,9 +68,10 @@ export function Select<T extends string | number>(props: {
             <SelectPrimitive.Viewport>
               {options.map((option) => (
                 <SelectPrimitive.Item
-                  key={String(option.value)}
+                  key={toRadixSelectValue(option.value)}
                   className="app-select-item"
-                  value={toRadixValue(String(option.value))}
+                  value={toRadixSelectValue(option.value)}
+                  disabled={option.disabled}
                 >
                   <SelectPrimitive.ItemIndicator className="app-select-item-indicator">
                     ✓

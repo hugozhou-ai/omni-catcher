@@ -105,7 +105,12 @@ export interface Capture {
   rulePreview: Classification;
   classification: Classification | null;
   agentSessionId: string | null;
-  agentProvider: string | null;
+  /** Exact Agent Target that handled this capture. */
+  agentTargetId: string | null;
+  /** Runtime metadata for the selected Agent Target. Never used to select an Agent. */
+  providerId: string | null;
+  /** @deprecated Legacy capture metadata from releases before Agent Target IDs. */
+  agentProvider?: string | null;
   error: string | null;
   progress?: CaptureProgress;
   /** Transient, in-memory status text for the current agent turn. Not persisted. */
@@ -129,11 +134,28 @@ export interface Item {
   confirmedAt: string;
 }
 
+export interface AgentTarget {
+  agentTargetId: string;
+  providerId: string;
+  displayName: string;
+  status: "available" | "unavailable" | "unknown";
+  runtimeSupported: boolean;
+}
+
+export interface AgentTargetsResult {
+  available: boolean;
+  agents: AgentTarget[];
+  defaultAgentTargetId: string;
+  error?: string;
+}
+
+/** @deprecated Compatibility response for clients that still select providers. */
 export interface AgentProvider {
   provider: string;
   status: string;
 }
 
+/** @deprecated Use AgentTargetsResult. Ambiguous providers are omitted. */
 export interface AgentProvidersResult {
   available: boolean;
   providers: AgentProvider[];

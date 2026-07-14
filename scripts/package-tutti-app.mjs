@@ -40,7 +40,7 @@ await build({
   outfile: resolve(pkg, "server/server.js"),
   platform: "node",
   format: "esm",
-  target: "node20",
+  target: "node22",
   bundle: true,
   banner: {
     js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",

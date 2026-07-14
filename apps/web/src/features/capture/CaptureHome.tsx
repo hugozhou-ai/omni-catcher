@@ -7,13 +7,14 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import type { Capture, CaptureProgress } from "@omni-catcher/shared";
+import type { AgentTarget, Capture, CaptureProgress } from "@omni-catcher/shared";
 import { useService, useStore } from "../../platform/react.js";
 import { useTranslation } from "../../hooks/useTranslation.js";
 import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
 import { Select } from "../../components/Select.js";
+import { buildAgentTargetOptions } from "../../components/agentTargetOptions.js";
 import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { AgentResultCard } from "./AgentResultCard.js";
@@ -80,11 +81,10 @@ export function CaptureHome(): ReactNode {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
-  const [providers, setProviders] = useState<string[]>([]);
-  const [providerHint, setProviderHint] = useState("");
+  const [agentTargets, setAgentTargets] = useState<AgentTarget[]>([]);
+  const [agentTargetHint, setAgentTargetHint] = useState("");
   const [preferred, setPreferred] = useState("");
   const [quoteExpanded, setQuoteExpanded] = useState(false);
-  const providerChoiceVersion = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 24, y: 18 });
 
@@ -99,17 +99,17 @@ export function CaptureHome(): ReactNode {
       : "review";
 
   useEffect(() => {
-    const choiceVersion = providerChoiceVersion.current;
-    void Promise.all([workspace.getProviders(), workspace.getPreferredProvider()]).then(
-      ([result, saved]) => {
-        const names = result.providers.map((p) => p.provider);
-        setProviders(names);
-        if (providerChoiceVersion.current === choiceVersion) {
-          setPreferred(names.includes(saved) ? saved : "");
-        }
-        setProviderHint(result.available && names.length ? "" : t("providerNone"));
+    const unsubscribe = workspace.subscribePreferredAgentTarget(setPreferred);
+    void Promise.all([workspace.getAgentTargets(), workspace.getPreferredAgentTarget()]).then(
+      ([result]) => {
+        const available = result.agents.filter(
+          (agent) => agent.runtimeSupported && agent.status === "available",
+        );
+        setAgentTargets(result.agents);
+        setAgentTargetHint(result.available && available.length ? "" : t("agentTargetNone"));
       },
     );
+    return unsubscribe;
   }, [workspace, t]);
 
   useEffect(() => {
@@ -134,10 +134,8 @@ export function CaptureHome(): ReactNode {
     setQuoteExpanded(false);
   }
 
-  function onProviderChange(value: string): void {
-    providerChoiceVersion.current += 1;
-    setPreferred(value);
-    void workspace.setPreferredProvider(value).catch((error) =>
+  function onAgentTargetChange(value: string): void {
+    void workspace.setPreferredAgentTarget(value).catch((error) =>
       showToast((error as Error).message, "error"),
     );
   }
@@ -303,18 +301,20 @@ export function CaptureHome(): ReactNode {
             </div>
             <div className="capture-input-bar">
               <div className="capture-input-meta">
-                {providerHint ? <span className="provider-hint-warn">{providerHint}</span> : null}
-                {providers.length ? (
+                {agentTargetHint ? (
+                  <span className="provider-hint-warn">{agentTargetHint}</span>
+                ) : null}
+                {agentTargets.length || preferred ? (
                   <div className="provider-select">
-                    <span className="hint">{t("providerLabel")}</span>
+                    <span className="hint">{t("agentTargetLabel")}</span>
                     <Select
                       inline
                       value={preferred}
-                      options={[
-                        { value: "", label: t("providerDefaultOption") },
-                        ...providers.map((name) => ({ value: name, label: name })),
-                      ]}
-                      onChange={onProviderChange}
+                      options={buildAgentTargetOptions(agentTargets, preferred, {
+                        defaultOption: t("agentTargetDefaultOption"),
+                        unavailable: t("agentTargetUnavailable"),
+                      })}
+                      onChange={onAgentTargetChange}
                     />
                   </div>
                 ) : null}

@@ -33,6 +33,10 @@ export async function loadConfiguredAgentSettings(
   } catch (error) {
     if (!onMigrationError) throw error;
     onMigrationError(error);
+    return { settings, agentTargetId };
   }
-  return { settings, agentTargetId };
+  return {
+    settings,
+    agentTargetId: await agent.resolveConfiguredAgentTarget(settings),
+  };
 }

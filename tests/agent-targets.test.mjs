@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import test from "node:test";
 
 import {
@@ -10,7 +11,10 @@ import {
   resolveComposerModel,
 } from "../apps/server/dist/services/agentService.js";
 import { loadConfiguredAgentSettings } from "../apps/server/dist/services/agentSettingsService.js";
-import { projectSettingsResponse } from "../apps/server/dist/http/routes.js";
+import { projectSettingsResponse, registerRoutes } from "../apps/server/dist/http/routes.js";
+
+const requireFromServer = createRequire(new URL("../apps/server/package.json", import.meta.url));
+const Fastify = requireFromServer("fastify");
 
 const available = { status: "available", reasonCode: "", detail: "" };
 const unavailable = {
@@ -82,6 +86,43 @@ test("selection validation uses a typed error while catalog failures remain oper
     () => resolveAgentTargetFromCatalog(catalog(), { agentTargetId: "missing" }),
     AgentTargetSelectionError,
   );
+});
+
+test("settings route maps only known target validation failures to HTTP 400", async (t) => {
+  const validationApp = Fastify();
+  t.after(() => validationApp.close());
+  registerRoutes(
+    validationApp,
+    routeServices({
+      resolveAgentTarget: async () => {
+        throw new AgentTargetSelectionError("agent target is not in the current catalog: missing");
+      },
+    }),
+  );
+  const validation = await validationApp.inject({
+    method: "POST",
+    url: "/api/settings",
+    payload: { agentTargetId: "missing" },
+  });
+  assert.equal(validation.statusCode, 400);
+
+  const operationalApp = Fastify();
+  t.after(() => operationalApp.close());
+  registerRoutes(
+    operationalApp,
+    routeServices({
+      resolveAgentTarget: async () => {
+        throw new Error("catalog transport unavailable");
+      },
+    }),
+  );
+  const operational = await operationalApp.inject({
+    method: "POST",
+    url: "/api/settings",
+    payload: { agentTargetId: "team:one" },
+  });
+  assert.equal(operational.statusCode, 500);
+  assert.match(operational.body, /catalog transport unavailable/);
 });
 
 test("unavailable exact targets fail instead of silently switching identity", () => {
@@ -213,11 +254,13 @@ test("legacy settings migration compares the current value before replacing it",
     },
   };
   const result = await loadConfiguredAgentSettings(storage, {
-    resolveConfiguredAgentTarget: async () => "local:claude-code",
+    resolveConfiguredAgentTarget: async (settings) =>
+      settings.agentTargetId ||
+      (settings.agentProvider === "claude" ? "local:claude-code" : undefined),
   });
 
   assert.deepEqual(result.settings, { agentTargetId: "user:newer-target", custom: true });
-  assert.equal(result.agentTargetId, "local:claude-code");
+  assert.equal(result.agentTargetId, "user:newer-target");
 });
 
 test("legacy settings migration persists an exact target and removes the provider key", async () => {
@@ -275,3 +318,32 @@ test("settings responses never leak an unvalidated stored legacy provider", () =
     },
   );
 });
+
+function routeServices(agentOverrides) {
+  const services = {
+    appConfig: {
+      workspaceId: "workspace-1",
+      workspaceName: "Workspace",
+      workspaceRoot: "/workspace",
+      dataDir: "/data",
+    },
+    storageService: {
+      readSettings: async () => ({}),
+      updateSettings: async (update) => update({}),
+    },
+    agentService: {
+      listAgentTargets: async () => ({ available: false, agents: [], defaultAgentTargetId: "" }),
+      listProviders: async () => ({ available: false, providers: [], defaultProvider: "" }),
+      projectLegacyProvider: async () => undefined,
+      ...agentOverrides,
+    },
+    captureService: {},
+    referenceService: {},
+    logService: { info() {}, warn() {}, error() {}, debug() {} },
+  };
+  return {
+    get(identifier) {
+      return services[identifier.id];
+    },
+  };
+}

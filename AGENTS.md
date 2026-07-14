@@ -9,6 +9,7 @@ The repository is a `pnpm` monorepo (`apps/web`, `apps/server`, `packages/shared
 into a self-contained package via `scripts/package-tutti-app.mjs`. Both apps use a VS
 Code–style service layer: interfaces bound to typed service identifiers, wired in a
 composition root, resolved through a small DI container (`packages/shared/src/platform`).
+Development and packaging require Node.js 22 or newer.
 
 ## Repository layout
 
@@ -34,7 +35,8 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
   - `inbox/<capId>.json` — transient pending capture state.
   - `notes/`, `bookmarks/`, `todos/` — confirmed Markdown items with YAML frontmatter.
   - `index.jsonl` — list/search index; source of truth is the Markdown files (rebuildable via `POST /api/rebuild-index`).
-  - `settings.json` — preferred agent provider.
+  - `settings.json` — preferred exact Agent Target ID (`agentTargetId`). Legacy
+    `agentProvider` is migrated only when the full catalog has one matching target.
 - On startup, when the injected data dir is empty, `StorageService.init()` migrates from
   legacy `~/.tutti/apps/workspaces/<ws>/omni-catcher/data`, other installation copies, or
   `~/.tutti/apps/installations/omni-catcher/.data-backup` if present.
@@ -51,13 +53,20 @@ composition root, resolved through a small DI container (`packages/shared/src/pl
 ## Agent integration
 
 There is no lightweight LLM endpoint; the working Agent uses the server-only
-`@tutti-os/agent-acp-kit/tutti` app runtime facade
+`@tutti-os/agent-acp-kit` local runtime plus its Tutti integration helpers
 (`AgentService` in `apps/server/src/services/agentService.ts`):
 
-1. resolve the app-scoped provider catalog and selected provider
-2. register every app-owned skill from `skills/` through one `skillManifest`
+1. load the app-scoped Agent Target catalog and select one exact `agentTargetId`
+2. load target-scoped composer options and host skills, then register every app-owned
+   skill from `skills/` through the same `skillManifest`
 3. stream one local Agent run in the data directory; the Agent routes and executes the task
 4. validate the final strict JSON result and rebuild `index.jsonl` after Markdown writes
+
+The selected provider ID is runtime metadata only. Every capture explicitly starts a fresh
+runtime session; resume state is never reused across Agent Targets. Compatibility reads of
+`agentProvider` fail closed when more than one catalog target uses that provider. Settings
+responses project the deprecated field only for an unambiguous target so cached legacy web
+clients can still read their preference during the migration window.
 
 `CaptureService.create` returns immediately and runs the Agent on a background task; the
 UI polls `GET /api/captures`. While a capture is running, `CaptureService` keeps only the
@@ -67,15 +76,17 @@ into API responses; it is not written to `inbox/<capId>.json`. `POST
 pending capture, and returns the original content so the UI can restore the input. On
 Agent failure/timeout the capture falls back to a rule-based classification with `status:
 needs_review`; `POST /api/captures/:id/retry` resets that same capture to `classifying`
-and starts a new background Agent run. Provider and model selection comes from
-the facade's app-scoped catalog. The optional `todo` → issue
+and starts a new background Agent run. Agent Target and model selection comes from
+the kit's app-scoped catalog and composer contract. The optional `todo` → issue
 upgrade (`IssueService`) calls `issue topic list` then `issue create`; `issue` is a
 reserved daemon scope this app only calls, never exposes.
 
 ## HTTP endpoints
 
 - `GET /healthz`; `GET /` + `/assets/*` — UI.
-- `GET /api/context`, `GET /api/agent-providers`, `GET|POST /api/settings`.
+- `GET /api/context`, `GET /api/agent-targets`, `GET|POST /api/settings`.
+- Deprecated `GET /api/agent-providers` projects only providers that map to exactly one
+  target in the full catalog; ambiguous providers are omitted.
 - `POST /api/capture` `{content, url?, source?}`; `GET /api/captures`, `GET /api/captures/:id`.
 - `POST /api/captures/:id/confirm` acknowledges a successful Agent result; for a legacy/rule-based review it accepts `{intent?, edits?, writeIssue?}` and performs the old deterministic write. Also: `POST /api/captures/:id/cancel`, `POST /api/captures/:id/retry`, `POST /api/captures/:id/reject`.
 - `GET /api/items[?type=]`, `GET /api/items/:id`, `PATCH /api/items/:id` (todo meta), `PATCH /api/items/:id/content` `{body, title?, tags?}` (note/bookmark body), `PATCH /api/items/:id/todo-task`, `DELETE /api/items/:id`, `POST /api/rebuild-index`.

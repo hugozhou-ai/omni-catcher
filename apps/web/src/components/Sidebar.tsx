@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Item } from "@omni-catcher/shared";
+import type { AgentTarget, Item } from "@omni-catcher/shared";
 import { useTranslation } from "../hooks/useTranslation.js";
 import { useService, useStore } from "../platform/react.js";
 import { ILibraryService } from "../services/libraryService.js";
@@ -64,7 +64,7 @@ export function Sidebar(props: {
     bookmark: false,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [providers, setProviders] = useState<string[]>([]);
+  const [agentTargets, setAgentTargets] = useState<AgentTarget[]>([]);
   const [preferred, setPreferred] = useState("");
   const settingsRef = useRef<HTMLDivElement | null>(null);
 
@@ -74,11 +74,13 @@ export function Sidebar(props: {
   }, [active, library]);
 
   useEffect(() => {
-    void Promise.all([workspace.getProviders(), workspace.getPreferredProvider()]).then(
+    void Promise.all([workspace.getAgentTargets(), workspace.getPreferredAgentTarget()]).then(
       ([result, saved]) => {
-        const names = result.providers.map((provider) => provider.provider);
-        setProviders(names);
-        setPreferred(names.includes(saved) ? saved : "");
+        const available = result.agents.filter(
+          (agent) => agent.runtimeSupported && agent.status === "available",
+        );
+        setAgentTargets(available);
+        setPreferred(available.some((agent) => agent.agentTargetId === saved) ? saved : "");
       },
     );
   }, [workspace]);
@@ -307,23 +309,26 @@ export function Sidebar(props: {
             {settingsOpen ? (
               <div className="sidebar-settings-panel">
                 <strong>{t("settingsTitle")}</strong>
-                {providers.length ? (
+                {agentTargets.length ? (
                   <Select
-                    label={t("providerLabel")}
+                    label={t("agentTargetLabel")}
                     value={preferred}
                     options={[
-                      { value: "", label: t("providerDefaultOption") },
-                      ...providers.map((name) => ({ value: name, label: name })),
+                      { value: "", label: t("agentTargetDefaultOption") },
+                      ...agentTargets.map((agent) => ({
+                        value: agent.agentTargetId,
+                        label: `${agent.displayName} (${agent.agentTargetId})`,
+                      })),
                     ]}
                     onChange={(value) => {
                       setPreferred(value);
-                      void workspace.setPreferredProvider(value).catch((error) =>
+                      void workspace.setPreferredAgentTarget(value).catch((error) =>
                         showToast((error as Error).message, "error"),
                       );
                     }}
                   />
                 ) : (
-                  <p className="provider-hint-warn">{t("providerNone")}</p>
+                  <p className="provider-hint-warn">{t("agentTargetNone")}</p>
                 )}
                 <div className="sidebar-settings-meta">
                   <span>

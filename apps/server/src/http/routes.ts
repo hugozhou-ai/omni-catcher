@@ -9,7 +9,11 @@ import {
 } from "@omni-catcher/shared";
 import { IAppConfig } from "../config.js";
 import { IStorageService } from "../services/storageService.js";
-import { IAgentService, normalizeProvider } from "../services/agentService.js";
+import {
+  IAgentService,
+  normalizeAgentTargetId,
+  normalizeLegacyProvider,
+} from "../services/agentService.js";
 import { ICaptureService } from "../services/captureService.js";
 import { IReferenceService } from "../services/referenceService.js";
 
@@ -35,19 +39,52 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     dataDir: config.dataDir,
   }));
 
+  app.get("/api/agent-targets", async () => agent.listAgentTargets());
+
+  /** @deprecated Compatibility endpoint. Shared providers are omitted. */
   app.get("/api/agent-providers", async () => agent.listProviders());
 
-  app.get("/api/settings", async () => storage.readSettings());
+  app.get("/api/settings", async () => {
+    const settings = await storage.readSettings();
+    const agentTargetId = await agent.resolveConfiguredAgentTarget(settings);
+    const agentProvider = agentTargetId
+      ? await agent.projectLegacyProvider(agentTargetId)
+      : undefined;
+    if (!settings.agentTargetId && settings.agentProvider && agentTargetId) {
+      const migrated: Record<string, unknown> = { ...settings, agentTargetId };
+      delete migrated.agentProvider;
+      await storage.writeSettings(migrated);
+      return { ...migrated, ...(agentProvider ? { agentProvider } : {}) };
+    }
+    const response: Record<string, unknown> = {
+      ...settings,
+      agentTargetId: agentTargetId ?? "",
+    };
+    delete response.agentProvider;
+    return { ...response, ...(agentProvider ? { agentProvider } : {}) };
+  });
 
   app.post("/api/settings", async (request) => {
     const body = (request.body || {}) as Record<string, unknown>;
     const settings = await storage.readSettings();
-    if ("agentProvider" in body) {
-      const provider = normalizeProvider(body.agentProvider);
-      // Empty string clears the preference and falls back to the daemon default.
-      settings.agentProvider = provider;
+    if ("agentTargetId" in body && "agentProvider" in body) {
+      throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
     }
-    return storage.writeSettings(settings);
+    if ("agentTargetId" in body) {
+      const requested = normalizeAgentTargetId(body.agentTargetId);
+      settings.agentTargetId = requested ? await agent.resolveAgentTarget(requested) : "";
+      delete settings.agentProvider;
+    } else if ("agentProvider" in body) {
+      const providerId = normalizeLegacyProvider(body.agentProvider);
+      settings.agentTargetId = providerId ? await agent.resolveLegacyProvider(providerId) : "";
+      delete settings.agentProvider;
+    }
+    await storage.writeSettings(settings);
+    const agentTargetId = normalizeAgentTargetId(settings.agentTargetId);
+    const agentProvider = agentTargetId
+      ? await agent.projectLegacyProvider(agentTargetId)
+      : undefined;
+    return { ...settings, ...(agentProvider ? { agentProvider } : {}) };
   });
 
   app.get("/api/captures", async () => ({ captures: await captures.list() }));

@@ -58,7 +58,7 @@ Catcher wordmark; collapsed mode uses the compact app icon.
 
 There is no chat-style conversation UI — each capture is a single round trip:
 
-1. **Idle** — logo, multi-line input, optional **Agent** provider selector, **Capture** button (`Cmd/Ctrl+Enter`).
+1. **Idle** — logo, multi-line input, optional exact **Agent** selector, **Capture** button (`Cmd/Ctrl+Enter`).
 2. **Processing** — a quote of what you sent, spinner, latest Agent activity, and a **Stop** action that cancels the run and restores the original input. Runs are serialized because the Agent edits the shared Markdown library directly.
 3. **Result** — create/organize requests show the Agent summary and changed Markdown paths; query requests render the answer. Acknowledging the result returns to the input.
 4. **Done** — returns to idle with an empty input.
@@ -137,6 +137,9 @@ omni-catcher/
 
 ## Develop
 
+Development and packaging require Node.js 22 or newer, matching
+`@tutti-os/agent-acp-kit` 0.5.0.
+
 ```bash
 pnpm install
 pnpm dev            # builds shared, runs server (:3001) + web (:5173) with proxy
@@ -150,7 +153,7 @@ pnpm install:tutti  # same as node scripts/install-tutti-app.mjs (see below)
 ```
 
 Open http://localhost:5173 to exercise the sidebar + capture flow locally. Without a
-locally discoverable agent provider, capture degrades to the legacy rule-based review so
+locally discoverable Agent Target, capture degrades to the legacy rule-based review so
 the UI stays usable. `TUTTI_CLI` remains optional for issue creation.
 
 ## How it runs inside Tutti
@@ -162,9 +165,10 @@ the UI stays usable. `TUTTI_CLI` remains optional for issue creation.
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
 There is no lightweight LLM endpoint in Tutti, so each request streams one local Agent run
-through the server-only `@tutti-os/agent-acp-kit/tutti` facade. The facade resolves the
-provider and model; the app registers every skill in `skills/` through `skillManifest` and
-uses `$TUTTI_APP_DATA_DIR` as the Agent cwd. The Agent chooses skills and directly reads or
+through `@tutti-os/agent-acp-kit` 0.5.0. The app loads the Agent catalog, resolves an exact
+`agentTargetId`, then loads target-scoped composer options and host skills. Provider ID is
+kept only as runtime metadata. The app also registers every skill in `skills/` through
+`skillManifest` and uses `$TUTTI_APP_DATA_DIR` as the Agent cwd. The Agent chooses skills and directly reads or
 edits `notes/`, `bookmarks/`, and `todos/`; the server rebuilds `index.jsonl` afterward.
 The run executes on a background task; `POST /api/capture` returns
 immediately and the UI polls for the result and latest in-memory activity text. Processing
@@ -173,7 +177,8 @@ agent session when one exists, removes the pending capture, and returns the orig
 content for retry. Failed captures can be retried in place with
 `POST /api/captures/:id/retry`, which resets the capture to `classifying` and starts a new
 background Agent run. Completion comes directly from the normalized agent event
-stream, so the app does not poll Tutti agent sessions.
+stream, so the app does not poll Tutti agent sessions. Captures always request a fresh
+runtime session, so resume state cannot cross Agent Target boundaries.
 
 ## Install & debug in Tutti
 
@@ -223,16 +228,20 @@ Confirm the live path from the running server: `curl :<port>/api/context` and re
 instead; `scripts/install-tutti-app.mjs` now backs up/restores against the richest
 source and writes back to the current installation data dir.
 
-The server logs the Agent provider, purpose/result metadata, failures, and the runtime port
+The server logs the exact Agent Target, runtime provider metadata, purpose/result metadata,
+failures, and the runtime port
 (`[omni-catcher] listening on 127.0.0.1:<port>`) — hit that port directly to bypass the
 daemon while debugging (e.g. `curl :<port>/api/items`).
 
-### Choosing the agent provider
+### Choosing the Agent Target
 
-The working Agent uses the daemon's default provider unless you pick one in the capture
-home **Agent** selector (bottom of the input area). If the default (often codex) is
-rate-limited, choose an available provider such as `claude-code`; the preference is
-stored per workspace in `$TUTTI_APP_DATA_DIR/settings.json` (`agentProvider`).
+The working Agent uses the daemon's default Agent Target unless you pick one in the capture
+home **Agent** selector (bottom of the input area). The exact selection is stored per
+workspace in `$TUTTI_APP_DATA_DIR/settings.json` as `agentTargetId`. Existing
+`agentProvider` settings are migrated only when that provider maps to exactly one target in
+the full catalog; shared providers fail closed instead of choosing an arbitrary Agent.
+During the compatibility window, settings responses also project `agentProvider` for an
+unambiguous exact target so older cached clients can continue reading their preference.
 
 ## CLI
 

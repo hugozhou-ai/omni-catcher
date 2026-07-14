@@ -6,16 +6,16 @@
   "packageManager": "pnpm@10.33.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build:shared": "pnpm --filter @omni-catcher/shared build",
     "build:server": "pnpm --filter @omni-catcher/server build",
     "build:web": "pnpm --filter @omni-catcher/web build",
     "build": "pnpm build:shared && pnpm build:server && pnpm build:web",
-    "test": "node --test tests/*.test.mjs",
+    "test": "pnpm build:shared && pnpm build:server && node --test tests/*.test.mjs",
     "dev": "pnpm build:shared && concurrently -n server,web -c blue,green \"pnpm --filter @omni-catcher/server dev\" \"pnpm --filter @omni-catcher/web dev\"",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm build:shared && pnpm -r typecheck",
     "package:tutti": "node scripts/package-tutti-app.mjs",
     "install:tutti": "node scripts/install-tutti-app.mjs"
   },

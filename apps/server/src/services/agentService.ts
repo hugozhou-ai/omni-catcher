@@ -1,36 +1,56 @@
 import { randomUUID } from "node:crypto";
 
-import type { AgentEvent } from "@tutti-os/agent-acp-kit";
 import {
-  createTuttiAgentAppRuntime,
-  type TuttiAgentAppRuntime,
-  type TuttiAgentProviderCatalogEntry,
+  createDefaultLocalAgentRuntime,
+  type AgentEvent,
+  type LocalAgentRuntime,
+} from "@tutti-os/agent-acp-kit";
+import {
+  loadTuttiAgentCatalog,
+  loadTuttiAgentComposerOptions,
+  loadTuttiAgentSkillContext,
+  type TuttiAgentCatalog,
+  type TuttiAgentCatalogEntry,
+  type TuttiAgentComposerOptions,
 } from "@tutti-os/agent-acp-kit/tutti";
-import type { AgentProvider, AgentProvidersResult } from "@omni-catcher/shared";
+import type {
+  AgentProvidersResult,
+  AgentTarget,
+  AgentTargetsResult,
+} from "@omni-catcher/shared";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
 import type { ISkillRegistryService } from "./skillRegistryService.js";
 
 export interface AgentRunResult {
   text: string;
   sessionId: string;
-  provider: string;
+  agentTargetId: string;
+  providerId: string;
 }
 
 export interface AgentRunCallbacks {
   isCanceled?(): boolean | Promise<boolean>;
-  onStarted?(sessionId: string, provider: string): void | Promise<void>;
+  onStarted?(
+    sessionId: string,
+    agentTargetId: string,
+    providerId: string,
+  ): void | Promise<void>;
   onActivity?(activityText: string): void | Promise<void>;
 }
 
 export interface IAgentService {
+  listAgentTargets(): Promise<AgentTargetsResult>;
+  /** @deprecated Compatibility projection. Ambiguous providers are omitted. */
   listProviders(): Promise<AgentProvidersResult>;
-  resolveProvider(preferred?: string): Promise<string>;
-  resolveModel(provider: string): Promise<string>;
+  resolveConfiguredAgentTarget(settings: Record<string, unknown>): Promise<string | undefined>;
+  resolveAgentTarget(agentTargetId: string): Promise<string>;
+  resolveLegacyProvider(providerId: string): Promise<string>;
+  projectLegacyProvider(agentTargetId: string): Promise<string | undefined>;
   runPrompt(
     prompt: string,
     title: string,
     timeoutMs: number,
-    preferred?: string,
+    preferredAgentTargetId?: string,
     callbacks?: AgentRunCallbacks,
   ): Promise<AgentRunResult>;
   cancelSession(sessionId: string): Promise<void>;
@@ -38,88 +58,230 @@ export interface IAgentService {
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
 
-export function normalizeProvider(value: unknown): string {
+/** Normalize only the deprecated provider compatibility input. Agent Target IDs stay exact. */
+export function normalizeLegacyProvider(value: unknown): string {
   const provider = String(value || "").trim().toLowerCase();
-  // Settings created before Tutti standardized the Claude runtime ID may still
-  // contain "claude". Canonicalize only at this persistence/API boundary; the
-  // live provider catalog remains the source of truth for executable IDs.
   return provider === "claude" ? "claude-code" : provider;
+}
+
+export function normalizeAgentTargetId(value: unknown): string {
+  return String(value || "").trim();
+}
+
+export function resolveAgentTargetFromCatalog(
+  catalog: TuttiAgentCatalog,
+  input: {
+    agentTargetId?: string;
+    legacyProviderId?: string;
+    requireRunnable?: boolean;
+    useDefault?: boolean;
+  },
+): TuttiAgentCatalogEntry {
+  const requestedTarget = normalizeAgentTargetId(input.agentTargetId);
+  const legacyProviderId = normalizeLegacyProvider(input.legacyProviderId);
+  if (requestedTarget && legacyProviderId) {
+    throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
+  }
+
+  let selected: TuttiAgentCatalogEntry | undefined;
+  if (requestedTarget) {
+    selected = catalog.agents.find((agent) => agent.agentTargetId === requestedTarget);
+    if (!selected) throw new Error(`agent target is not in the current catalog: ${requestedTarget}`);
+  } else if (legacyProviderId) {
+    const matches = catalog.agents.filter((agent) => agent.providerId === legacyProviderId);
+    if (matches.length !== 1) {
+      throw new Error(
+        matches.length > 1
+          ? `multiple agents use provider ${legacyProviderId}; select an exact agent target id`
+          : `provider is not in the current agent catalog: ${legacyProviderId}`,
+      );
+    }
+    selected = matches[0];
+  } else if (input.useDefault !== false) {
+    const defaultAgent = catalog.agents.find(
+      (agent) => agent.agentTargetId === catalog.defaultAgentTargetId,
+    );
+    selected =
+      (defaultAgent && isRunnableAgent(defaultAgent) ? defaultAgent : undefined) ??
+      catalog.agents.find(isRunnableAgent);
+  }
+
+  if (!selected) throw new Error("no agent target is available");
+  if (input.requireRunnable !== false && !isRunnableAgent(selected)) {
+    throw new Error(
+      selected.availability.detail || `agent target is not available: ${selected.agentTargetId}`,
+    );
+  }
+  return selected;
+}
+
+export function projectLegacyProviderCatalog(catalog: TuttiAgentCatalog): AgentProvidersResult {
+  const counts = new Map<string, number>();
+  for (const agent of catalog.agents) {
+    counts.set(agent.providerId, (counts.get(agent.providerId) ?? 0) + 1);
+  }
+  const agents = catalog.agents.filter(
+    (agent) => counts.get(agent.providerId) === 1 && isRunnableAgent(agent),
+  );
+  const defaultAgent = catalog.agents.find(
+    (agent) => agent.agentTargetId === catalog.defaultAgentTargetId,
+  );
+  const defaultProvider =
+    defaultAgent && counts.get(defaultAgent.providerId) === 1 && isRunnableAgent(defaultAgent)
+      ? defaultAgent.providerId
+      : "";
+  return {
+    available: agents.length > 0,
+    providers: agents.map((agent) => ({ provider: agent.providerId, status: "available" })),
+    defaultProvider,
+  };
+}
+
+export function projectLegacyProviderForAgentTarget(
+  catalog: TuttiAgentCatalog,
+  agentTargetId: string,
+): string | undefined {
+  const target = catalog.agents.find((agent) => agent.agentTargetId === agentTargetId);
+  if (!target) return undefined;
+  return catalog.agents.filter((agent) => agent.providerId === target.providerId).length === 1
+    ? target.providerId
+    : undefined;
+}
+
+export function resolveComposerModel(
+  composer: Pick<TuttiAgentComposerOptions, "modelConfig">,
+): string {
+  return (
+    composer.modelConfig.currentValue ||
+    composer.modelConfig.defaultValue ||
+    composer.modelConfig.options[0]?.value ||
+    "default"
+  );
 }
 
 export class AgentService implements IAgentService {
   constructor(
     private readonly skills: ISkillRegistryService,
     private readonly cwd: string,
-    private readonly agents: TuttiAgentAppRuntime = createTuttiAgentAppRuntime(),
+    private readonly runtime: LocalAgentRuntime<string, string> = createDefaultLocalAgentRuntime(),
   ) {}
 
-  async listProviders(): Promise<AgentProvidersResult> {
-    const catalog = await this.agents.getProviderCatalog({
-      includeComposerOptions: false,
-    });
-    const providers: AgentProvider[] = catalog.providers
-      .filter((provider) => provider.available)
-      .map((provider) => ({ provider: provider.id, status: "available" }));
+  async listAgentTargets(): Promise<AgentTargetsResult> {
+    const catalog = await this.loadCatalog();
+    const agents = catalog.agents.map(toAgentTarget);
+    const available = agents.filter(
+      (agent) => agent.runtimeSupported && agent.status === "available",
+    );
+    const defaultAgent = available.find(
+      (agent) => agent.agentTargetId === catalog.defaultAgentTargetId,
+    );
     return {
-      available: catalog.status === "ready" && providers.length > 0,
-      providers,
-      defaultProvider:
-        catalog.selectedProviderId ?? catalog.defaultProviderId ?? "",
-      ...(catalog.errorCode ? { error: catalog.errorCode } : {}),
+      available: available.length > 0,
+      agents,
+      defaultAgentTargetId: defaultAgent?.agentTargetId ?? available[0]?.agentTargetId ?? "",
     };
   }
 
-  async resolveProvider(preferred?: string): Promise<string> {
-    const catalog = await this.agents.getProviderCatalog({
-      preferredProviderId: normalizeProvider(preferred),
-      includeComposerOptions: false,
-    });
-    return catalog.selectedProviderId ?? normalizeProvider(preferred);
+  async listProviders(): Promise<AgentProvidersResult> {
+    return projectLegacyProviderCatalog(await this.loadCatalog());
   }
 
-  async resolveModel(provider: string): Promise<string> {
-    const entry = await this.resolveProviderEntry(provider);
-    return entry?.defaultModelId ?? entry?.models[0]?.id ?? "";
+  async resolveConfiguredAgentTarget(
+    settings: Record<string, unknown>,
+  ): Promise<string | undefined> {
+    const agentTargetId = normalizeAgentTargetId(settings.agentTargetId);
+    const legacyProviderId = agentTargetId
+      ? ""
+      : normalizeLegacyProvider(settings.agentProvider);
+    if (!agentTargetId && !legacyProviderId) return undefined;
+    const agent = resolveAgentTargetFromCatalog(await this.loadCatalog(), {
+      ...(agentTargetId ? { agentTargetId } : {}),
+      ...(legacyProviderId ? { legacyProviderId } : {}),
+      requireRunnable: false,
+      useDefault: false,
+    });
+    return agent.agentTargetId;
+  }
+
+  async resolveAgentTarget(agentTargetId: string): Promise<string> {
+    return resolveAgentTargetFromCatalog(await this.loadCatalog(), {
+      agentTargetId,
+      requireRunnable: false,
+      useDefault: false,
+    }).agentTargetId;
+  }
+
+  async resolveLegacyProvider(providerId: string): Promise<string> {
+    return resolveAgentTargetFromCatalog(await this.loadCatalog(), {
+      legacyProviderId: providerId,
+      requireRunnable: false,
+      useDefault: false,
+    }).agentTargetId;
+  }
+
+  async projectLegacyProvider(agentTargetId: string): Promise<string | undefined> {
+    return projectLegacyProviderForAgentTarget(await this.loadCatalog(), agentTargetId);
   }
 
   async runPrompt(
     prompt: string,
     title: string,
     timeoutMs: number,
-    preferred?: string,
+    preferredAgentTargetId?: string,
     callbacks?: AgentRunCallbacks,
   ): Promise<AgentRunResult> {
-    if (await callbacks?.isCanceled?.()) {
-      throw new Error("agent session was canceled");
-    }
+    if (await callbacks?.isCanceled?.()) throw new Error("agent session was canceled");
 
-    const catalog = await this.agents.getProviderCatalog({
-      preferredProviderId: normalizeProvider(preferred),
-      composer: { cwd: this.cwd },
+    const target = resolveAgentTargetFromCatalog(await this.loadCatalog(), {
+      ...(preferredAgentTargetId ? { agentTargetId: preferredAgentTargetId } : {}),
     });
-    const provider = catalog.selectedProviderId;
-    if (!provider) throw new Error("no agent provider is available");
-    const providerEntry = catalog.providers.find((entry) => entry.id === provider);
-    const model = providerEntry?.defaultModelId ?? providerEntry?.models[0]?.id;
-    if (!model) throw new Error(`no model available for provider ${provider}`);
-
     const runId = randomUUID();
-    await callbacks?.onStarted?.(runId, provider);
-    const output: string[] = [];
-    const skillManifest = await this.skills.loadAll();
+    const [composer, skillContext, appSkills] = await Promise.all([
+      loadTuttiAgentComposerOptions({
+        runtime: this.runtime,
+        agentTargetId: target.agentTargetId,
+        cwd: this.cwd,
+        env: process.env,
+      }),
+      loadTuttiAgentSkillContext({
+        agentTargetId: target.agentTargetId,
+        agentSessionId: runId,
+        cwd: this.cwd,
+        env: process.env,
+      }),
+      this.skills.loadAll(),
+    ]);
+    const model = resolveComposerModel(composer);
+    const permissionMode = composer.permissionConfig.modes.find(
+      (mode) => mode.id === composer.permissionConfig.defaultValue,
+    );
 
-    for await (const event of this.agents.run({
-      providerId: provider,
+    await callbacks?.onStarted?.(runId, target.agentTargetId, target.providerId);
+    const output: string[] = [];
+    for await (const event of this.runtime.run({
       runId,
-      localCwd: this.cwd,
+      conversationId: runId,
+      sessionId: runId,
+      provider: target.providerId,
+      runtimeKind: "local-agent",
+      runtimeProvider: target.providerId,
+      cwd: this.cwd,
       prompt,
+      systemPrompt: skillContext.recommendedSystemPrompt?.content,
       model,
+      reasoning:
+        composer.reasoningConfig.currentValue || composer.reasoningConfig.defaultValue || undefined,
+      permission: permissionMode
+        ? { modeId: permissionMode.id, semantic: permissionMode.semantic }
+        : undefined,
       timeoutMs,
-      metadata: { title },
-      skillManifest,
+      skillManifest: [...skillContext.skillManifest, ...appSkills],
+      metadata: { title, agentTargetId: target.agentTargetId, providerId: target.providerId },
+      // Captures are independent tasks. Never resume a provider session across Agent Targets.
+      resume: { mode: "fresh" },
     })) {
       if (await callbacks?.isCanceled?.()) {
-        await this.agents.cancel(runId);
+        await this.runtime.cancel(runId);
         throw new Error("agent session was canceled");
       }
       if (event.type === "text_delta") output.push(event.text);
@@ -127,35 +289,43 @@ export class AgentService implements IAgentService {
       if (activity) await callbacks?.onActivity?.(activity);
       if (event.type === "error") throw new Error(event.message);
       if (event.type === "done") {
-        if (event.status === "canceled") {
-          throw new Error("agent session was canceled");
-        }
-        if (event.status === "failed") {
-          throw new Error("agent session failed");
-        }
+        if (event.status === "canceled") throw new Error("agent session was canceled");
+        if (event.status === "failed") throw new Error("agent session failed");
       }
     }
 
     const text = output.join("").trim();
     if (!text) throw new Error("agent completed without producing a result");
-    return { text, sessionId: runId, provider };
+    return {
+      text,
+      sessionId: runId,
+      agentTargetId: target.agentTargetId,
+      providerId: target.providerId,
+    };
   }
 
   async cancelSession(sessionId: string): Promise<void> {
     const runId = sessionId.trim();
-    if (runId) await this.agents.cancel(runId);
+    if (runId) await this.runtime.cancel(runId);
   }
 
-  private async resolveProviderEntry(
-    provider: string,
-  ): Promise<TuttiAgentProviderCatalogEntry | undefined> {
-    const normalized = normalizeProvider(provider);
-    const catalog = await this.agents.getProviderCatalog({
-      preferredProviderId: normalized,
-      composer: { cwd: this.cwd },
-    });
-    return catalog.providers.find((entry) => entry.id === normalized);
+  private async loadCatalog(): Promise<TuttiAgentCatalog> {
+    return loadTuttiAgentCatalog({ runtime: this.runtime, cwd: this.cwd, env: process.env });
   }
+}
+
+function isRunnableAgent(agent: TuttiAgentCatalogEntry): boolean {
+  return agent.runtimeSupported && agent.availability.status === "available";
+}
+
+function toAgentTarget(agent: TuttiAgentCatalogEntry): AgentTarget {
+  return {
+    agentTargetId: agent.agentTargetId,
+    providerId: agent.providerId,
+    displayName: agent.displayName,
+    status: agent.availability.status,
+    runtimeSupported: agent.runtimeSupported,
+  };
 }
 
 function activityFromAgentEvent(event: AgentEvent): string | null {
@@ -165,9 +335,7 @@ function activityFromAgentEvent(event: AgentEvent): string | null {
   if (event.type === "status") {
     return event.message?.trim() || event.status?.trim() || event.stage?.trim() || null;
   }
-  if (event.type === "tool_call") {
-    return `Using ${event.name || "tool"}…`;
-  }
+  if (event.type === "tool_call") return `Using ${event.name || "tool"}…`;
   return null;
 }
 

@@ -1,12 +1,12 @@
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
-import type { AgentProvidersResult, WorkspaceContext } from "@omni-catcher/shared";
+import type { AgentTargetsResult, WorkspaceContext } from "@omni-catcher/shared";
 import type { IApiService } from "./apiService.js";
 
 export interface IWorkspaceService {
   getContext(): Promise<WorkspaceContext | null>;
-  getProviders(): Promise<AgentProvidersResult>;
-  getPreferredProvider(): Promise<string>;
-  setPreferredProvider(provider: string): Promise<void>;
+  getAgentTargets(): Promise<AgentTargetsResult>;
+  getPreferredAgentTarget(): Promise<string>;
+  setPreferredAgentTarget(agentTargetId: string): Promise<void>;
 }
 
 export const IWorkspaceService = createServiceIdentifier<IWorkspaceService>("workspaceService");
@@ -22,24 +22,24 @@ export class WorkspaceService implements IWorkspaceService {
     }
   }
 
-  async getProviders(): Promise<AgentProvidersResult> {
+  async getAgentTargets(): Promise<AgentTargetsResult> {
     try {
-      return await this.api.get<AgentProvidersResult>("/api/agent-providers");
+      return await this.api.get<AgentTargetsResult>("/api/agent-targets");
     } catch {
-      return { available: false, providers: [], defaultProvider: "" };
+      return { available: false, agents: [], defaultAgentTargetId: "" };
     }
   }
 
-  async getPreferredProvider(): Promise<string> {
+  async getPreferredAgentTarget(): Promise<string> {
     try {
       const settings = await this.api.get<Record<string, unknown>>("/api/settings");
-      return String(settings.agentProvider || "");
+      return String(settings.agentTargetId || "");
     } catch {
       return "";
     }
   }
 
-  async setPreferredProvider(provider: string): Promise<void> {
-    await this.api.post("/api/settings", { agentProvider: provider });
+  async setPreferredAgentTarget(agentTargetId: string): Promise<void> {
+    await this.api.post("/api/settings", { agentTargetId });
   }
 }

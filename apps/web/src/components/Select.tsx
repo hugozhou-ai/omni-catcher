@@ -4,6 +4,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 export type SelectOption<T extends string | number> = {
   value: T;
   label: string;
+  disabled?: boolean;
 };
 
 const EMPTY_VALUE = "__app_select_empty__";
@@ -77,6 +78,7 @@ export function Select<T extends string | number>(props: {
                   key={String(option.value)}
                   className="app-select-item"
                   value={toRadixValue(String(option.value))}
+                  disabled={option.disabled}
                 >
                   <SelectPrimitive.ItemIndicator className="app-select-item-indicator">
                     ✓

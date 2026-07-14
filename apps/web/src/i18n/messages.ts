@@ -65,10 +65,10 @@ export interface Messages {
   deleteItem: string;
   deleteConfirm: string;
   discarded: string;
-  agentTargetReady: string;
   agentTargetNone: string;
   agentTargetLabel: string;
   agentTargetDefaultOption: string;
+  agentTargetUnavailable: string;
   intentNote: string;
   intentBookmark: string;
   intentTodo: string;

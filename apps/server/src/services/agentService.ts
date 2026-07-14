@@ -12,6 +12,7 @@ import {
   type TuttiAgentCatalog,
   type TuttiAgentCatalogEntry,
   type TuttiAgentComposerOptions,
+  type TuttiAgentSkillContext,
 } from "@tutti-os/agent-acp-kit/tutti";
 import type {
   AgentProvidersResult,
@@ -150,13 +151,34 @@ export function projectLegacyProviderForAgentTarget(
 
 export function resolveComposerModel(
   composer: Pick<TuttiAgentComposerOptions, "modelConfig">,
-): string {
+): string | undefined {
   return (
     composer.modelConfig.currentValue ||
     composer.modelConfig.defaultValue ||
     composer.modelConfig.options[0]?.value ||
-    "default"
+    undefined
   );
+}
+
+export function assertAgentRunContextIdentity(
+  target: Pick<TuttiAgentCatalogEntry, "agentTargetId" | "providerId">,
+  composer: Pick<TuttiAgentComposerOptions, "agentTargetId" | "providerId">,
+  skillContext: Pick<
+    TuttiAgentSkillContext,
+    "source" | "agentTargetId" | "providerId"
+  >,
+): void {
+  const composerMatches =
+    composer.agentTargetId === target.agentTargetId && composer.providerId === target.providerId;
+  const skillContextMatches =
+    skillContext.source === "standalone" ||
+    (skillContext.agentTargetId === target.agentTargetId &&
+      skillContext.providerId === target.providerId);
+  if (!composerMatches || !skillContextMatches) {
+    throw new Error(
+      `agent target identity changed while preparing the run: ${target.agentTargetId}`,
+    );
+  }
 }
 
 export class AgentService implements IAgentService {
@@ -251,6 +273,7 @@ export class AgentService implements IAgentService {
       }),
       this.skills.loadAll(),
     ]);
+    assertAgentRunContextIdentity(target, composer, skillContext);
     const model = resolveComposerModel(composer);
     const permissionMode = composer.permissionConfig.modes.find(
       (mode) => mode.id === composer.permissionConfig.defaultValue,

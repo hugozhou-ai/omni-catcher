@@ -137,7 +137,7 @@ omni-catcher/
 
 ## Develop
 
-Development and packaging require Node.js 22 or newer, matching
+Development and packaging require Node.js 22.12 or newer, matching
 `@tutti-os/agent-acp-kit` 0.5.0.
 
 ```bash

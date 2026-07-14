@@ -31,6 +31,9 @@ export interface IStorageService {
   init(): Promise<void>;
   readSettings(): Promise<Record<string, unknown>>;
   writeSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>>;
+  updateSettings(
+    update: (settings: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
   readCapture(id: string): Promise<Capture | null>;
   writeCapture(capture: Capture): Promise<Capture>;
   listCaptures(): Promise<Capture[]>;
@@ -100,6 +103,17 @@ export class StorageService implements IStorageService {
   async writeSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
     await this.mutex.run(() => writeFile(this.settingsPath, JSON.stringify(settings, null, 2), "utf-8"));
     return settings;
+  }
+
+  async updateSettings(
+    update: (settings: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this.mutex.run(async () => {
+      const current = await this.readSettings();
+      const next = update(current);
+      await writeFile(this.settingsPath, JSON.stringify(next, null, 2), "utf-8");
+      return next;
+    });
   }
 
   // -- captures ------------------------------------------------------------
@@ -427,6 +441,7 @@ export class StorageService implements IStorageService {
     };
     if (capture.agentSessionId) nextMeta.agentSessionId = capture.agentSessionId;
     if (capture.agentTargetId) nextMeta.agentTargetId = capture.agentTargetId;
+    else if (capture.providerId || capture.agentProvider) delete nextMeta.agentTargetId;
     if (capture.providerId) nextMeta.providerId = capture.providerId;
     else if (capture.agentProvider) nextMeta.providerId = capture.agentProvider;
     const nextBody = skipBodyInsert

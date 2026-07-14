@@ -22,6 +22,16 @@ function cliInput(body: unknown): Record<string, unknown> {
   return (envelope.input as Record<string, unknown>) || {};
 }
 
+export function projectSettingsResponse(
+  settings: Record<string, unknown>,
+  agentTargetId: string,
+  agentProvider?: string,
+): Record<string, unknown> {
+  const response: Record<string, unknown> = { ...settings, agentTargetId };
+  delete response.agentProvider;
+  return { ...response, ...(agentProvider ? { agentProvider } : {}) };
+}
+
 export function registerRoutes(app: FastifyInstance, services: IInstantiationService): void {
   const config = services.get(IAppConfig);
   const storage = services.get(IStorageService);
@@ -45,46 +55,59 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   app.get("/api/agent-providers", async () => agent.listProviders());
 
   app.get("/api/settings", async () => {
-    const settings = await storage.readSettings();
-    const agentTargetId = await agent.resolveConfiguredAgentTarget(settings);
-    const agentProvider = agentTargetId
-      ? await agent.projectLegacyProvider(agentTargetId)
-      : undefined;
-    if (!settings.agentTargetId && settings.agentProvider && agentTargetId) {
-      const migrated: Record<string, unknown> = { ...settings, agentTargetId };
-      delete migrated.agentProvider;
-      await storage.writeSettings(migrated);
-      return { ...migrated, ...(agentProvider ? { agentProvider } : {}) };
+    let settings = await storage.readSettings();
+    const resolvedTargetId = await agent.resolveConfiguredAgentTarget(settings);
+    const legacyProvider = normalizeLegacyProvider(settings.agentProvider);
+    if (!normalizeAgentTargetId(settings.agentTargetId) && legacyProvider && resolvedTargetId) {
+      settings = await storage.updateSettings((current) => {
+        if (
+          normalizeAgentTargetId(current.agentTargetId) ||
+          normalizeLegacyProvider(current.agentProvider) !== legacyProvider
+        ) {
+          return current;
+        }
+        const migrated: Record<string, unknown> = { ...current, agentTargetId: resolvedTargetId };
+        delete migrated.agentProvider;
+        return migrated;
+      });
     }
-    const response: Record<string, unknown> = {
-      ...settings,
-      agentTargetId: agentTargetId ?? "",
-    };
-    delete response.agentProvider;
-    return { ...response, ...(agentProvider ? { agentProvider } : {}) };
-  });
-
-  app.post("/api/settings", async (request) => {
-    const body = (request.body || {}) as Record<string, unknown>;
-    const settings = await storage.readSettings();
-    if ("agentTargetId" in body && "agentProvider" in body) {
-      throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
-    }
-    if ("agentTargetId" in body) {
-      const requested = normalizeAgentTargetId(body.agentTargetId);
-      settings.agentTargetId = requested ? await agent.resolveAgentTarget(requested) : "";
-      delete settings.agentProvider;
-    } else if ("agentProvider" in body) {
-      const providerId = normalizeLegacyProvider(body.agentProvider);
-      settings.agentTargetId = providerId ? await agent.resolveLegacyProvider(providerId) : "";
-      delete settings.agentProvider;
-    }
-    await storage.writeSettings(settings);
     const agentTargetId = normalizeAgentTargetId(settings.agentTargetId);
     const agentProvider = agentTargetId
       ? await agent.projectLegacyProvider(agentTargetId)
       : undefined;
-    return { ...settings, ...(agentProvider ? { agentProvider } : {}) };
+    return projectSettingsResponse(settings, agentTargetId, agentProvider);
+  });
+
+  app.post("/api/settings", async (request, reply) => {
+    const body = (request.body || {}) as Record<string, unknown>;
+    let agentTargetUpdate: string | undefined;
+    try {
+      if ("agentTargetId" in body && "agentProvider" in body) {
+        throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
+      }
+      if ("agentTargetId" in body) {
+        const requested = normalizeAgentTargetId(body.agentTargetId);
+        agentTargetUpdate = requested ? await agent.resolveAgentTarget(requested) : "";
+      } else if ("agentProvider" in body) {
+        const providerId = normalizeLegacyProvider(body.agentProvider);
+        agentTargetUpdate = providerId ? await agent.resolveLegacyProvider(providerId) : "";
+      }
+    } catch (error) {
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : "Invalid Agent Target settings",
+      });
+    }
+    const settings = await storage.updateSettings((current) => {
+      if (agentTargetUpdate === undefined) return current;
+      const next: Record<string, unknown> = { ...current, agentTargetId: agentTargetUpdate };
+      delete next.agentProvider;
+      return next;
+    });
+    const agentTargetId = normalizeAgentTargetId(settings.agentTargetId);
+    const agentProvider = agentTargetId
+      ? await agent.projectLegacyProvider(agentTargetId)
+      : undefined;
+    return projectSettingsResponse(settings, agentTargetId, agentProvider);
   });
 
   app.get("/api/captures", async () => ({ captures: await captures.list() }));

@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertAgentRunContextIdentity,
   projectLegacyProviderCatalog,
   projectLegacyProviderForAgentTarget,
   resolveAgentTargetFromCatalog,
   resolveComposerModel,
 } from "../apps/server/dist/services/agentService.js";
+import { projectSettingsResponse } from "../apps/server/dist/http/routes.js";
 
 const available = { status: "available", reasonCode: "", detail: "" };
 const unavailable = {
@@ -146,5 +148,66 @@ test("composer model aliases reach the kit runtime without consumer-side prefix 
       },
     }),
     "codex:gpt-5-mini",
+  );
+});
+
+test("an empty composer model lets the selected runtime use its own default", () => {
+  assert.equal(
+    resolveComposerModel({
+      modelConfig: { currentValue: "", defaultValue: "", options: [] },
+    }),
+    undefined,
+  );
+});
+
+test("run preparation fails if target-scoped composer or skills change identity", () => {
+  const target = { agentTargetId: "team:codex-one", providerId: "codex" };
+  assert.doesNotThrow(() =>
+    assertAgentRunContextIdentity(
+      target,
+      target,
+      { source: "tutti-cli", ...target },
+    ),
+  );
+  assert.throws(
+    () =>
+      assertAgentRunContextIdentity(
+        target,
+        { agentTargetId: target.agentTargetId, providerId: "future-runtime" },
+        { source: "tutti-cli", ...target },
+      ),
+    /identity changed/,
+  );
+  assert.throws(
+    () =>
+      assertAgentRunContextIdentity(
+        target,
+        target,
+        {
+          source: "tutti-cli",
+          agentTargetId: "team:codex-two",
+          providerId: target.providerId,
+        },
+      ),
+    /identity changed/,
+  );
+});
+
+test("settings responses never leak an unvalidated stored legacy provider", () => {
+  assert.deepEqual(
+    projectSettingsResponse({ agentProvider: "codex", custom: true }, ""),
+    { agentTargetId: "", custom: true },
+  );
+  assert.deepEqual(
+    projectSettingsResponse(
+      { agentProvider: "claude", custom: true },
+      "local:claude-code",
+      "claude-code",
+    ),
+    {
+      agentTargetId: "local:claude-code",
+      agentProvider: "claude-code",
+      custom: true,
+    },
   );
 });

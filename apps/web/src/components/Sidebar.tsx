@@ -74,15 +74,13 @@ export function Sidebar(props: {
   }, [active, library]);
 
   useEffect(() => {
+    const unsubscribe = workspace.subscribePreferredAgentTarget(setPreferred);
     void Promise.all([workspace.getAgentTargets(), workspace.getPreferredAgentTarget()]).then(
-      ([result, saved]) => {
-        const available = result.agents.filter(
-          (agent) => agent.runtimeSupported && agent.status === "available",
-        );
-        setAgentTargets(available);
-        setPreferred(available.some((agent) => agent.agentTargetId === saved) ? saved : "");
+      ([result]) => {
+        setAgentTargets(result.agents);
       },
     );
+    return unsubscribe;
   }, [workspace]);
 
   useEffect(() => {
@@ -309,19 +307,26 @@ export function Sidebar(props: {
             {settingsOpen ? (
               <div className="sidebar-settings-panel">
                 <strong>{t("settingsTitle")}</strong>
-                {agentTargets.length ? (
+                {agentTargets.length || preferred ? (
                   <Select
                     label={t("agentTargetLabel")}
                     value={preferred}
                     options={[
                       { value: "", label: t("agentTargetDefaultOption") },
+                      ...(preferred && !agentTargets.some((agent) => agent.agentTargetId === preferred)
+                        ? [{ value: preferred, label: `${preferred} (${t("agentTargetUnavailable")})`, disabled: true }]
+                        : []),
                       ...agentTargets.map((agent) => ({
                         value: agent.agentTargetId,
-                        label: `${agent.displayName} (${agent.agentTargetId})`,
+                        label: `${agent.displayName} (${agent.agentTargetId})${
+                          agent.runtimeSupported && agent.status === "available"
+                            ? ""
+                            : ` — ${t("agentTargetUnavailable")}`
+                        }`,
+                        disabled: !(agent.runtimeSupported && agent.status === "available"),
                       })),
                     ]}
                     onChange={(value) => {
-                      setPreferred(value);
                       void workspace.setPreferredAgentTarget(value).catch((error) =>
                         showToast((error as Error).message, "error"),
                       );

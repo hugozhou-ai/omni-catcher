@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.33.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "build:shared": "pnpm --filter @omni-catcher/shared build",
@@ -15,7 +15,7 @@
     "build": "pnpm build:shared && pnpm build:server && pnpm build:web",
     "test": "pnpm build:shared && pnpm build:server && node --test tests/*.test.mjs",
     "dev": "pnpm build:shared && concurrently -n server,web -c blue,green \"pnpm --filter @omni-catcher/server dev\" \"pnpm --filter @omni-catcher/web dev\"",
-    "typecheck": "pnpm build:shared && pnpm -r typecheck",
+    "typecheck": "pnpm build:shared && pnpm -r --filter '!@omni-catcher/shared' typecheck",
     "package:tutti": "node scripts/package-tutti-app.mjs",
     "install:tutti": "node scripts/install-tutti-app.mjs"
   },

@@ -9,7 +9,7 @@ The repository is a `pnpm` monorepo (`apps/web`, `apps/server`, `packages/shared
 into a self-contained package via `scripts/package-tutti-app.mjs`. Both apps use a VS
 Code–style service layer: interfaces bound to typed service identifiers, wired in a
 composition root, resolved through a small DI container (`packages/shared/src/platform`).
-Development and packaging require Node.js 22 or newer.
+Development and packaging require Node.js 22.12 or newer.
 
 ## Repository layout
 

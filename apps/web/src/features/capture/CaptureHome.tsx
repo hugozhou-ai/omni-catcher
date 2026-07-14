@@ -84,7 +84,6 @@ export function CaptureHome(): ReactNode {
   const [agentTargetHint, setAgentTargetHint] = useState("");
   const [preferred, setPreferred] = useState("");
   const [quoteExpanded, setQuoteExpanded] = useState(false);
-  const agentChoiceVersion = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [caretBox, setCaretBox] = useState<CaretBox>({ height: 22, visible: false, x: 24, y: 18 });
 
@@ -99,19 +98,17 @@ export function CaptureHome(): ReactNode {
       : "review";
 
   useEffect(() => {
-    const choiceVersion = agentChoiceVersion.current;
+    const unsubscribe = workspace.subscribePreferredAgentTarget(setPreferred);
     void Promise.all([workspace.getAgentTargets(), workspace.getPreferredAgentTarget()]).then(
-      ([result, saved]) => {
+      ([result]) => {
         const available = result.agents.filter(
           (agent) => agent.runtimeSupported && agent.status === "available",
         );
-        setAgentTargets(available);
-        if (agentChoiceVersion.current === choiceVersion) {
-          setPreferred(available.some((agent) => agent.agentTargetId === saved) ? saved : "");
-        }
+        setAgentTargets(result.agents);
         setAgentTargetHint(result.available && available.length ? "" : t("agentTargetNone"));
       },
     );
+    return unsubscribe;
   }, [workspace, t]);
 
   useEffect(() => {
@@ -137,8 +134,6 @@ export function CaptureHome(): ReactNode {
   }
 
   function onAgentTargetChange(value: string): void {
-    agentChoiceVersion.current += 1;
-    setPreferred(value);
     void workspace.setPreferredAgentTarget(value).catch((error) =>
       showToast((error as Error).message, "error"),
     );
@@ -308,7 +303,7 @@ export function CaptureHome(): ReactNode {
                 {agentTargetHint ? (
                   <span className="provider-hint-warn">{agentTargetHint}</span>
                 ) : null}
-                {agentTargets.length ? (
+                {agentTargets.length || preferred ? (
                   <div className="provider-select">
                     <span className="hint">{t("agentTargetLabel")}</span>
                     <Select
@@ -316,9 +311,17 @@ export function CaptureHome(): ReactNode {
                       value={preferred}
                       options={[
                         { value: "", label: t("agentTargetDefaultOption") },
+                        ...(preferred && !agentTargets.some((agent) => agent.agentTargetId === preferred)
+                          ? [{ value: preferred, label: `${preferred} (${t("agentTargetUnavailable")})`, disabled: true }]
+                          : []),
                         ...agentTargets.map((agent) => ({
                           value: agent.agentTargetId,
-                          label: `${agent.displayName} (${agent.agentTargetId})`,
+                          label: `${agent.displayName} (${agent.agentTargetId})${
+                            agent.runtimeSupported && agent.status === "available"
+                              ? ""
+                              : ` — ${t("agentTargetUnavailable")}`
+                          }`,
+                          disabled: !(agent.runtimeSupported && agent.status === "available"),
                         })),
                       ]}
                       onChange={onAgentTargetChange}

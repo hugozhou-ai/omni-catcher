@@ -17,7 +17,11 @@ import { resolveEffectiveSavePlan, withDeterministicSavePlan } from "../savePlan
 import type { IStorageService } from "./storageService.js";
 import { INTENT_DIRS } from "./storageService.js";
 import type { IClassificationService } from "./classificationService.js";
-import type { IAgentService } from "./agentService.js";
+import {
+  normalizeAgentTargetId,
+  normalizeLegacyProvider,
+  type IAgentService,
+} from "./agentService.js";
 import type { IIssueService } from "./issueService.js";
 
 export interface ICaptureService {
@@ -162,13 +166,29 @@ export class CaptureService implements ICaptureService {
       try {
         const settings = await this.storage.readSettings();
         const preferredAgentTargetId = await this.agent.resolveConfiguredAgentTarget(settings);
-        if (!settings.agentTargetId && settings.agentProvider && preferredAgentTargetId) {
-          const migratedSettings: Record<string, unknown> = {
-            ...settings,
-            agentTargetId: preferredAgentTargetId,
-          };
-          delete migratedSettings.agentProvider;
-          await this.storage.writeSettings(migratedSettings);
+        const storedTargetId = normalizeAgentTargetId(settings.agentTargetId);
+        const storedProvider = normalizeLegacyProvider(settings.agentProvider);
+        if (!storedTargetId && storedProvider && preferredAgentTargetId) {
+          await this.storage
+            .updateSettings((current) => {
+              if (
+                normalizeAgentTargetId(current.agentTargetId) ||
+                normalizeLegacyProvider(current.agentProvider) !== storedProvider
+              ) {
+                return current;
+              }
+              const migratedSettings: Record<string, unknown> = {
+                ...current,
+                agentTargetId: preferredAgentTargetId,
+              };
+              delete migratedSettings.agentProvider;
+              return migratedSettings;
+            })
+            .catch((error) => {
+              this.log.warn(
+                `${AGENT_LOG_PREFIX} legacy settings migration failed: ${String(error)}`,
+              );
+            });
         }
         await this.updateProgress(id, "preparing_context");
         if (this.isCanceled(id)) return;

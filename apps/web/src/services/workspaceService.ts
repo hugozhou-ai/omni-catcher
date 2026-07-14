@@ -7,11 +7,18 @@ export interface IWorkspaceService {
   getAgentTargets(): Promise<AgentTargetsResult>;
   getPreferredAgentTarget(): Promise<string>;
   setPreferredAgentTarget(agentTargetId: string): Promise<void>;
+  subscribePreferredAgentTarget(listener: (agentTargetId: string) => void): () => void;
 }
 
 export const IWorkspaceService = createServiceIdentifier<IWorkspaceService>("workspaceService");
 
 export class WorkspaceService implements IWorkspaceService {
+  private preferredAgentTargetId = "";
+  private confirmedAgentTargetId = "";
+  private readonly preferredListeners = new Set<(agentTargetId: string) => void>();
+  private preferenceWrite: Promise<void> = Promise.resolve();
+  private preferenceVersion = 0;
+
   constructor(private readonly api: IApiService) {}
 
   async getContext(): Promise<WorkspaceContext | null> {
@@ -32,14 +39,50 @@ export class WorkspaceService implements IWorkspaceService {
 
   async getPreferredAgentTarget(): Promise<string> {
     try {
+      await this.preferenceWrite;
+      const readVersion = this.preferenceVersion;
       const settings = await this.api.get<Record<string, unknown>>("/api/settings");
-      return String(settings.agentTargetId || "");
+      const agentTargetId = String(settings.agentTargetId || "").trim();
+      if (this.preferenceVersion === readVersion) {
+        this.confirmedAgentTargetId = agentTargetId;
+        this.publishPreferredAgentTarget(agentTargetId);
+        return agentTargetId;
+      }
+      return this.preferredAgentTargetId;
     } catch {
-      return "";
+      return this.preferredAgentTargetId;
     }
   }
 
   async setPreferredAgentTarget(agentTargetId: string): Promise<void> {
-    await this.api.post("/api/settings", { agentTargetId });
+    const requested = agentTargetId.trim();
+    const writeVersion = ++this.preferenceVersion;
+    const write = this.preferenceWrite.then(async () => {
+      try {
+        await this.api.post("/api/settings", { agentTargetId: requested });
+        this.confirmedAgentTargetId = requested;
+        if (this.preferenceVersion === writeVersion) {
+          this.publishPreferredAgentTarget(requested);
+        }
+      } catch (error) {
+        if (this.preferenceVersion === writeVersion) {
+          this.publishPreferredAgentTarget(this.confirmedAgentTargetId);
+        }
+        throw error;
+      }
+    });
+    this.preferenceWrite = write.catch(() => undefined);
+    return write;
+  }
+
+  subscribePreferredAgentTarget(listener: (agentTargetId: string) => void): () => void {
+    this.preferredListeners.add(listener);
+    listener(this.preferredAgentTargetId);
+    return () => this.preferredListeners.delete(listener);
+  }
+
+  private publishPreferredAgentTarget(agentTargetId: string): void {
+    this.preferredAgentTargetId = agentTargetId;
+    for (const listener of this.preferredListeners) listener(agentTargetId);
   }
 }

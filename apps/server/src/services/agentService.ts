@@ -59,6 +59,13 @@ export interface IAgentService {
 
 export const IAgentService = createServiceIdentifier<IAgentService>("agentService");
 
+export class AgentTargetSelectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AgentTargetSelectionError";
+  }
+}
+
 /** Normalize only the deprecated provider compatibility input. Agent Target IDs stay exact. */
 export function normalizeLegacyProvider(value: unknown): string {
   const provider = String(value || "").trim().toLowerCase();
@@ -81,17 +88,17 @@ export function resolveAgentTargetFromCatalog(
   const requestedTarget = normalizeAgentTargetId(input.agentTargetId);
   const legacyProviderId = normalizeLegacyProvider(input.legacyProviderId);
   if (requestedTarget && legacyProviderId) {
-    throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
+    throw new AgentTargetSelectionError("Provide agentTargetId or deprecated agentProvider, not both");
   }
 
   let selected: TuttiAgentCatalogEntry | undefined;
   if (requestedTarget) {
     selected = catalog.agents.find((agent) => agent.agentTargetId === requestedTarget);
-    if (!selected) throw new Error(`agent target is not in the current catalog: ${requestedTarget}`);
+    if (!selected) throw new AgentTargetSelectionError(`agent target is not in the current catalog: ${requestedTarget}`);
   } else if (legacyProviderId) {
     const matches = catalog.agents.filter((agent) => agent.providerId === legacyProviderId);
     if (matches.length !== 1) {
-      throw new Error(
+      throw new AgentTargetSelectionError(
         matches.length > 1
           ? `multiple agents use provider ${legacyProviderId}; select an exact agent target id`
           : `provider is not in the current agent catalog: ${legacyProviderId}`,
@@ -107,9 +114,9 @@ export function resolveAgentTargetFromCatalog(
       catalog.agents.find(isRunnableAgent);
   }
 
-  if (!selected) throw new Error("no agent target is available");
+  if (!selected) throw new AgentTargetSelectionError("no agent target is available");
   if (input.requireRunnable !== false && !isRunnableAgent(selected)) {
-    throw new Error(
+    throw new AgentTargetSelectionError(
       selected.availability.detail || `agent target is not available: ${selected.agentTargetId}`,
     );
   }
@@ -176,7 +183,10 @@ export function assertAgentRunContextIdentity(
       skillContext.providerId === target.providerId);
   if (!composerMatches || !skillContextMatches) {
     throw new Error(
-      `agent target identity changed while preparing the run: ${target.agentTargetId}`,
+      `agent target identity changed while preparing the run: ` +
+        `catalog={agentTargetId:${target.agentTargetId},providerId:${target.providerId}} ` +
+        `composer={agentTargetId:${composer.agentTargetId},providerId:${composer.providerId}} ` +
+        `skills={source:${skillContext.source},agentTargetId:${skillContext.agentTargetId},providerId:${skillContext.providerId}}`,
     );
   }
 }

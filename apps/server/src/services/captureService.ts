@@ -18,10 +18,9 @@ import type { IStorageService } from "./storageService.js";
 import { INTENT_DIRS } from "./storageService.js";
 import type { IClassificationService } from "./classificationService.js";
 import {
-  normalizeAgentTargetId,
-  normalizeLegacyProvider,
   type IAgentService,
 } from "./agentService.js";
+import { loadConfiguredAgentSettings } from "./agentSettingsService.js";
 import type { IIssueService } from "./issueService.js";
 
 export interface ICaptureService {
@@ -164,32 +163,15 @@ export class CaptureService implements ICaptureService {
     if (!capture) return;
     try {
       try {
-        const settings = await this.storage.readSettings();
-        const preferredAgentTargetId = await this.agent.resolveConfiguredAgentTarget(settings);
-        const storedTargetId = normalizeAgentTargetId(settings.agentTargetId);
-        const storedProvider = normalizeLegacyProvider(settings.agentProvider);
-        if (!storedTargetId && storedProvider && preferredAgentTargetId) {
-          await this.storage
-            .updateSettings((current) => {
-              if (
-                normalizeAgentTargetId(current.agentTargetId) ||
-                normalizeLegacyProvider(current.agentProvider) !== storedProvider
-              ) {
-                return current;
-              }
-              const migratedSettings: Record<string, unknown> = {
-                ...current,
-                agentTargetId: preferredAgentTargetId,
-              };
-              delete migratedSettings.agentProvider;
-              return migratedSettings;
-            })
-            .catch((error) => {
-              this.log.warn(
-                `${AGENT_LOG_PREFIX} legacy settings migration failed: ${String(error)}`,
-              );
-            });
-        }
+        const { agentTargetId: preferredAgentTargetId } = await loadConfiguredAgentSettings(
+          this.storage,
+          this.agent,
+          (error) => {
+            this.log.warn(
+              `${AGENT_LOG_PREFIX} legacy settings migration failed: ${String(error)}`,
+            );
+          },
+        );
         await this.updateProgress(id, "preparing_context");
         if (this.isCanceled(id)) return;
         const prompt = await this.classification.agentPrompt(capture.content);

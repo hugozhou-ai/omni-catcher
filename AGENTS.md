@@ -41,6 +41,9 @@ Development and packaging require Node.js 22.12 or newer.
   legacy `~/.tutti/apps/workspaces/<ws>/omni-catcher/data`, other installation copies, or
   `~/.tutti/apps/installations/omni-catcher/.data-backup` if present.
 - `StorageService` serializes all index/file writes through an async `Mutex` (`apps/server/src/util.ts`).
+- Settings updates replace `settings.json` atomically so concurrent readers see either the
+  complete old document or the complete new document. Legacy provider migration uses the
+  shared compare-and-update helper in `agentSettingsService.ts`.
 - The Agent cwd is `$TUTTI_APP_DATA_DIR`. Skills restrict direct work to `notes/`,
   `bookmarks/`, and `todos/`; the Agent must not edit `index.jsonl`. After create/organize,
   `CaptureService` rebuilds the index from Markdown. Agent runs are serialized so two captures

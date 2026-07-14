@@ -10,10 +10,12 @@ import {
 import { IAppConfig } from "../config.js";
 import { IStorageService } from "../services/storageService.js";
 import {
+  AgentTargetSelectionError,
   IAgentService,
   normalizeAgentTargetId,
   normalizeLegacyProvider,
 } from "../services/agentService.js";
+import { loadConfiguredAgentSettings } from "../services/agentSettingsService.js";
 import { ICaptureService } from "../services/captureService.js";
 import { IReferenceService } from "../services/referenceService.js";
 
@@ -55,22 +57,7 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   app.get("/api/agent-providers", async () => agent.listProviders());
 
   app.get("/api/settings", async () => {
-    let settings = await storage.readSettings();
-    const resolvedTargetId = await agent.resolveConfiguredAgentTarget(settings);
-    const legacyProvider = normalizeLegacyProvider(settings.agentProvider);
-    if (!normalizeAgentTargetId(settings.agentTargetId) && legacyProvider && resolvedTargetId) {
-      settings = await storage.updateSettings((current) => {
-        if (
-          normalizeAgentTargetId(current.agentTargetId) ||
-          normalizeLegacyProvider(current.agentProvider) !== legacyProvider
-        ) {
-          return current;
-        }
-        const migrated: Record<string, unknown> = { ...current, agentTargetId: resolvedTargetId };
-        delete migrated.agentProvider;
-        return migrated;
-      });
-    }
+    const { settings } = await loadConfiguredAgentSettings(storage, agent);
     const agentTargetId = normalizeAgentTargetId(settings.agentTargetId);
     const agentProvider = agentTargetId
       ? await agent.projectLegacyProvider(agentTargetId)
@@ -83,7 +70,7 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
     let agentTargetUpdate: string | undefined;
     try {
       if ("agentTargetId" in body && "agentProvider" in body) {
-        throw new Error("Provide agentTargetId or deprecated agentProvider, not both");
+        throw new AgentTargetSelectionError("Provide agentTargetId or deprecated agentProvider, not both");
       }
       if ("agentTargetId" in body) {
         const requested = normalizeAgentTargetId(body.agentTargetId);
@@ -93,8 +80,9 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
         agentTargetUpdate = providerId ? await agent.resolveLegacyProvider(providerId) : "";
       }
     } catch (error) {
+      if (!(error instanceof AgentTargetSelectionError)) throw error;
       return reply.code(400).send({
-        error: error instanceof Error ? error.message : "Invalid Agent Target settings",
+        error: error.message,
       });
     }
     const settings = await storage.updateSettings((current) => {

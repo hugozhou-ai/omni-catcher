@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  AgentTargetSelectionError,
   assertAgentRunContextIdentity,
   projectLegacyProviderCatalog,
   projectLegacyProviderForAgentTarget,
   resolveAgentTargetFromCatalog,
   resolveComposerModel,
 } from "../apps/server/dist/services/agentService.js";
+import { loadConfiguredAgentSettings } from "../apps/server/dist/services/agentSettingsService.js";
 import { projectSettingsResponse } from "../apps/server/dist/http/routes.js";
 
 const available = { status: "available", reasonCode: "", detail: "" };
@@ -72,6 +74,13 @@ test("legacy provider compatibility fails closed against the full catalog", () =
       useDefault: false,
     }).agentTargetId,
     "local:claude-code",
+  );
+});
+
+test("selection validation uses a typed error while catalog failures remain operational", () => {
+  assert.throws(
+    () => resolveAgentTargetFromCatalog(catalog(), { agentTargetId: "missing" }),
+    AgentTargetSelectionError,
   );
 });
 
@@ -176,7 +185,7 @@ test("run preparation fails if target-scoped composer or skills change identity"
         { agentTargetId: target.agentTargetId, providerId: "future-runtime" },
         { source: "tutti-cli", ...target },
       ),
-    /identity changed/,
+    /composer=\{agentTargetId:team:codex-one,providerId:future-runtime\}/,
   );
   assert.throws(
     () =>
@@ -189,8 +198,63 @@ test("run preparation fails if target-scoped composer or skills change identity"
           providerId: target.providerId,
         },
       ),
-    /identity changed/,
+    /skills=\{source:tutti-cli,agentTargetId:team:codex-two,providerId:codex\}/,
   );
+});
+
+test("legacy settings migration compares the current value before replacing it", async () => {
+  let current = { agentProvider: "claude", custom: true };
+  const storage = {
+    readSettings: async () => current,
+    updateSettings: async (update) => {
+      current = { agentTargetId: "user:newer-target", custom: true };
+      current = update(current);
+      return current;
+    },
+  };
+  const result = await loadConfiguredAgentSettings(storage, {
+    resolveConfiguredAgentTarget: async () => "local:claude-code",
+  });
+
+  assert.deepEqual(result.settings, { agentTargetId: "user:newer-target", custom: true });
+  assert.equal(result.agentTargetId, "local:claude-code");
+});
+
+test("legacy settings migration persists an exact target and removes the provider key", async () => {
+  let current = { agentProvider: "claude", custom: true };
+  const result = await loadConfiguredAgentSettings(
+    {
+      readSettings: async () => current,
+      updateSettings: async (update) => {
+        current = update(current);
+        return current;
+      },
+    },
+    { resolveConfiguredAgentTarget: async () => "local:claude-code" },
+  );
+
+  assert.deepEqual(result.settings, {
+    agentTargetId: "local:claude-code",
+    custom: true,
+  });
+});
+
+test("capture migration can continue after a settings write failure", async () => {
+  const failures = [];
+  const result = await loadConfiguredAgentSettings(
+    {
+      readSettings: async () => ({ agentProvider: "claude" }),
+      updateSettings: async () => {
+        throw new Error("disk unavailable");
+      },
+    },
+    { resolveConfiguredAgentTarget: async () => "local:claude-code" },
+    (error) => failures.push(error),
+  );
+
+  assert.equal(result.agentTargetId, "local:claude-code");
+  assert.deepEqual(result.settings, { agentProvider: "claude" });
+  assert.match(String(failures[0]), /disk unavailable/);
 });
 
 test("settings responses never leak an unvalidated stored legacy provider", () => {

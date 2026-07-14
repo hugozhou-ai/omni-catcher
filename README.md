@@ -137,8 +137,9 @@ omni-catcher/
 
 ## Develop
 
-Development and packaging require Node.js 22.12 or newer, matching
-`@tutti-os/agent-acp-kit` 0.5.0.
+Development and packaging require Node.js 22.12 or newer. The combined dependency
+constraint is set by Vite 7 (Node.js 22.12+) and `@tutti-os/agent-acp-kit` 0.5.0
+(Node.js 22+).
 
 ```bash
 pnpm install
@@ -237,7 +238,9 @@ daemon while debugging (e.g. `curl :<port>/api/items`).
 
 The working Agent uses the daemon's default Agent Target unless you pick one in the capture
 home **Agent** selector (bottom of the input area). The exact selection is stored per
-workspace in `$TUTTI_APP_DATA_DIR/settings.json` as `agentTargetId`. Existing
+workspace in `$TUTTI_APP_DATA_DIR/settings.json` as `agentTargetId`. Settings are replaced
+atomically, so concurrent captures and UI reads cannot observe a partially written
+preference. Existing
 `agentProvider` settings are migrated only when that provider maps to exactly one target in
 the full catalog; shared providers fail closed instead of choosing an arbitrary Agent.
 During the compatibility window, settings responses also project `agentProvider` for an

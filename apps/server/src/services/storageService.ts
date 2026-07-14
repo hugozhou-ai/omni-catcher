@@ -1,4 +1,5 @@
-import { mkdir, readFile, readdir, writeFile, appendFile, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, readdir, writeFile, appendFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { URL } from "node:url";
 import { createServiceIdentifier } from "@omni-catcher/shared/platform";
@@ -101,7 +102,7 @@ export class StorageService implements IStorageService {
   }
 
   async writeSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
-    await this.mutex.run(() => writeFile(this.settingsPath, JSON.stringify(settings, null, 2), "utf-8"));
+    await this.mutex.run(() => this.writeSettingsFile(settings));
     return settings;
   }
 
@@ -111,9 +112,19 @@ export class StorageService implements IStorageService {
     return this.mutex.run(async () => {
       const current = await this.readSettings();
       const next = update(current);
-      await writeFile(this.settingsPath, JSON.stringify(next, null, 2), "utf-8");
+      await this.writeSettingsFile(next);
       return next;
     });
+  }
+
+  private async writeSettingsFile(settings: Record<string, unknown>): Promise<void> {
+    const temporaryPath = `${this.settingsPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporaryPath, JSON.stringify(settings, null, 2), "utf-8");
+      await rename(temporaryPath, this.settingsPath);
+    } finally {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+    }
   }
 
   // -- captures ------------------------------------------------------------

@@ -39,7 +39,7 @@ export class WorkspaceService implements IWorkspaceService {
 
   async getPreferredAgentTarget(): Promise<string> {
     try {
-      await this.preferenceWrite;
+      await this.waitForPreferenceWrites();
       const readVersion = this.preferenceVersion;
       const settings = await this.api.get<Record<string, unknown>>("/api/settings");
       const agentTargetId = String(settings.agentTargetId || "").trim();
@@ -77,12 +77,30 @@ export class WorkspaceService implements IWorkspaceService {
 
   subscribePreferredAgentTarget(listener: (agentTargetId: string) => void): () => void {
     this.preferredListeners.add(listener);
-    listener(this.preferredAgentTargetId);
+    try {
+      listener(this.preferredAgentTargetId);
+    } catch {
+      // One observer cannot prevent later preference updates from being delivered.
+    }
     return () => this.preferredListeners.delete(listener);
   }
 
   private publishPreferredAgentTarget(agentTargetId: string): void {
     this.preferredAgentTargetId = agentTargetId;
-    for (const listener of this.preferredListeners) listener(agentTargetId);
+    for (const listener of this.preferredListeners) {
+      try {
+        listener(agentTargetId);
+      } catch {
+        // Observers cannot change the persistence result or block later listeners.
+      }
+    }
+  }
+
+  private async waitForPreferenceWrites(): Promise<void> {
+    while (true) {
+      const observed = this.preferenceWrite;
+      await observed;
+      if (observed === this.preferenceWrite) return;
+    }
   }
 }

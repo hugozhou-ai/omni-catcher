@@ -14,6 +14,7 @@ import { ICaptureService } from "../../services/captureService.js";
 import { IWorkspaceService } from "../../services/workspaceService.js";
 import { Spinner } from "../../components/Spinner.js";
 import { Select } from "../../components/Select.js";
+import { buildAgentTargetOptions } from "../../components/agentTargetOptions.js";
 import { Icon } from "../../components/Icons.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { AgentResultCard } from "./AgentResultCard.js";
@@ -309,21 +310,10 @@ export function CaptureHome(): ReactNode {
                     <Select
                       inline
                       value={preferred}
-                      options={[
-                        { value: "", label: t("agentTargetDefaultOption") },
-                        ...(preferred && !agentTargets.some((agent) => agent.agentTargetId === preferred)
-                          ? [{ value: preferred, label: `${preferred} (${t("agentTargetUnavailable")})`, disabled: true }]
-                          : []),
-                        ...agentTargets.map((agent) => ({
-                          value: agent.agentTargetId,
-                          label: `${agent.displayName} (${agent.agentTargetId})${
-                            agent.runtimeSupported && agent.status === "available"
-                              ? ""
-                              : ` — ${t("agentTargetUnavailable")}`
-                          }`,
-                          disabled: !(agent.runtimeSupported && agent.status === "available"),
-                        })),
-                      ]}
+                      options={buildAgentTargetOptions(agentTargets, preferred, {
+                        defaultOption: t("agentTargetDefaultOption"),
+                        unavailable: t("agentTargetUnavailable"),
+                      })}
                       onChange={onAgentTargetChange}
                     />
                   </div>

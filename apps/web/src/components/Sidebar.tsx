@@ -8,6 +8,7 @@ import { ILocalizationService } from "../services/localizationService.js";
 import { IThemeService } from "../services/themeService.js";
 import { Icon, type IconName } from "./Icons.js";
 import { Select } from "./Select.js";
+import { buildAgentTargetOptions } from "./agentTargetOptions.js";
 import { Tooltip } from "./primitives/Tooltip.js";
 import { showToast } from "../platform/toast.js";
 import {
@@ -311,21 +312,10 @@ export function Sidebar(props: {
                   <Select
                     label={t("agentTargetLabel")}
                     value={preferred}
-                    options={[
-                      { value: "", label: t("agentTargetDefaultOption") },
-                      ...(preferred && !agentTargets.some((agent) => agent.agentTargetId === preferred)
-                        ? [{ value: preferred, label: `${preferred} (${t("agentTargetUnavailable")})`, disabled: true }]
-                        : []),
-                      ...agentTargets.map((agent) => ({
-                        value: agent.agentTargetId,
-                        label: `${agent.displayName} (${agent.agentTargetId})${
-                          agent.runtimeSupported && agent.status === "available"
-                            ? ""
-                            : ` — ${t("agentTargetUnavailable")}`
-                        }`,
-                        disabled: !(agent.runtimeSupported && agent.status === "available"),
-                      })),
-                    ]}
+                    options={buildAgentTargetOptions(agentTargets, preferred, {
+                      defaultOption: t("agentTargetDefaultOption"),
+                      unavailable: t("agentTargetUnavailable"),
+                    })}
                     onChange={(value) => {
                       void workspace.setPreferredAgentTarget(value).catch((error) =>
                         showToast((error as Error).message, "error"),

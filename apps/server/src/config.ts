@@ -14,7 +14,6 @@ export interface AppConfig {
   webDist: string;
   workspaceId: string;
   workspaceName: string;
-  workspaceRoot: string;
   classifyTimeoutMs: number;
 }
 
@@ -47,7 +46,6 @@ export function loadConfig(): AppConfig {
     webDist: process.env.OMNI_WEB_DIST ? resolve(process.env.OMNI_WEB_DIST) : resolve(packageDir, "dist"),
     workspaceId: process.env.TUTTI_WORKSPACE_ID || "dev",
     workspaceName: process.env.TUTTI_WORKSPACE_NAME || process.env.TUTTI_WORKSPACE_ID || "Dev",
-    workspaceRoot: (process.env.TUTTI_WORKSPACE_ROOT || "").trim(),
     classifyTimeoutMs: Number(process.env.OMNI_CLASSIFY_TIMEOUT_MS || DEFAULT_CLASSIFY_TIMEOUT_MS),
   };
 }

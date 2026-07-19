@@ -166,7 +166,6 @@ export interface AgentProvidersResult {
 export interface WorkspaceContext {
   workspaceId: string;
   workspaceName: string;
-  workspaceRoot: string;
   dataDir: string;
 }
 

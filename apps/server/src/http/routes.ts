@@ -47,7 +47,6 @@ export function registerRoutes(app: FastifyInstance, services: IInstantiationSer
   app.get("/api/context", async () => ({
     workspaceId: config.workspaceId,
     workspaceName: config.workspaceName,
-    workspaceRoot: config.workspaceRoot,
     dataDir: config.dataDir,
   }));
 

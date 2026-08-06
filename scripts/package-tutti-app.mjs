@@ -14,8 +14,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outRoot = resolve(root, "build/tutti-app");
 const pkg = resolve(outRoot, "package");
 
-function run(command, args) {
-  execFileSync(command, args, { cwd: root, stdio: "inherit" });
+function runPackageManager(args) {
+  const entrypoint = process.env.npm_execpath?.trim();
+  if (!entrypoint) {
+    throw new Error("npm_execpath is required to run the package manager");
+  }
+  execFileSync(process.execPath, [entrypoint, ...args], { cwd: root, stdio: "inherit" });
 }
 
 function copy(relative) {
@@ -29,10 +33,10 @@ rmSync(outRoot, { recursive: true, force: true });
 mkdirSync(resolve(pkg, "server"), { recursive: true });
 
 console.log("• building @omni-catcher/shared");
-run("pnpm", ["--filter", "@omni-catcher/shared", "build"]);
+runPackageManager(["--filter", "@omni-catcher/shared", "build"]);
 
 console.log("• building web (vite)");
-run("pnpm", ["--filter", "@omni-catcher/web", "build"]);
+runPackageManager(["--filter", "@omni-catcher/web", "build"]);
 
 console.log("• bundling server (esbuild)");
 await build({

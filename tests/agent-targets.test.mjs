@@ -8,7 +8,6 @@ import {
   projectLegacyProviderCatalog,
   projectLegacyProviderForAgentTarget,
   resolveAgentTargetFromCatalog,
-  resolveComposerModel,
 } from "../apps/server/dist/services/agentService.js";
 import { loadConfiguredAgentSettings } from "../apps/server/dist/services/agentSettingsService.js";
 import { projectSettingsResponse, registerRoutes } from "../apps/server/dist/http/routes.js";
@@ -188,33 +187,10 @@ test("settings expose a legacy provider only for an unambiguous exact target", (
   );
 });
 
-test("composer model aliases reach the kit runtime without consumer-side prefix stripping", () => {
-  assert.equal(
-    resolveComposerModel({
-      modelConfig: {
-        currentValue: "codex:gpt-5-mini",
-        defaultValue: "codex:gpt-5",
-        options: [],
-      },
-    }),
-    "codex:gpt-5-mini",
-  );
-});
-
-test("an empty composer model lets the selected runtime use its own default", () => {
-  assert.equal(
-    resolveComposerModel({
-      modelConfig: { currentValue: "", defaultValue: "", options: [] },
-    }),
-    undefined,
-  );
-});
-
-test("run preparation fails if target-scoped composer or skills change identity", () => {
+test("run preparation fails if target-scoped skills change identity", () => {
   const target = { agentTargetId: "team:codex-one", providerId: "codex" };
   assert.doesNotThrow(() =>
     assertAgentRunContextIdentity(
-      target,
       target,
       { source: "tutti-cli", ...target },
     ),
@@ -222,16 +198,6 @@ test("run preparation fails if target-scoped composer or skills change identity"
   assert.throws(
     () =>
       assertAgentRunContextIdentity(
-        target,
-        { agentTargetId: target.agentTargetId, providerId: "future-runtime" },
-        { source: "tutti-cli", ...target },
-      ),
-    /composer=\{agentTargetId:team:codex-one,providerId:future-runtime\}/,
-  );
-  assert.throws(
-    () =>
-      assertAgentRunContextIdentity(
-        target,
         target,
         {
           source: "tutti-cli",

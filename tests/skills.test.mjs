@@ -19,7 +19,7 @@ test("every app-owned skill has a complete SKILL.md", async () => {
   for (const slug of skills) {
     const path = resolve(root, "skills", slug, "SKILL.md");
     assert.equal((await stat(path)).isFile(), true, path);
-    const content = await readFile(path, "utf-8");
+    const content = (await readFile(path, "utf-8")).replaceAll("\r\n", "\n");
     assert.match(content, /^---\nname: /);
     assert.match(content, /\ndescription: .+\n---\n/);
   }

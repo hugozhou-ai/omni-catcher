@@ -7,11 +7,9 @@ import {
 } from "@tutti-os/agent-acp-kit";
 import {
   loadTuttiAgentCatalog,
-  loadTuttiAgentComposerOptions,
   loadTuttiAgentSkillContext,
   type TuttiAgentCatalog,
   type TuttiAgentCatalogEntry,
-  type TuttiAgentComposerOptions,
   type TuttiAgentSkillContext,
 } from "@tutti-os/agent-acp-kit/tutti";
 import type {
@@ -156,36 +154,21 @@ export function projectLegacyProviderForAgentTarget(
     : undefined;
 }
 
-export function resolveComposerModel(
-  composer: Pick<TuttiAgentComposerOptions, "modelConfig">,
-): string | undefined {
-  return (
-    composer.modelConfig.currentValue ||
-    composer.modelConfig.defaultValue ||
-    composer.modelConfig.options[0]?.value ||
-    undefined
-  );
-}
-
 export function assertAgentRunContextIdentity(
   target: Pick<TuttiAgentCatalogEntry, "agentTargetId" | "providerId">,
-  composer: Pick<TuttiAgentComposerOptions, "agentTargetId" | "providerId">,
   skillContext: Pick<
     TuttiAgentSkillContext,
     "source" | "agentTargetId" | "providerId"
   >,
 ): void {
-  const composerMatches =
-    composer.agentTargetId === target.agentTargetId && composer.providerId === target.providerId;
   const skillContextMatches =
     skillContext.source === "standalone" ||
     (skillContext.agentTargetId === target.agentTargetId &&
       skillContext.providerId === target.providerId);
-  if (!composerMatches || !skillContextMatches) {
+  if (!skillContextMatches) {
     throw new Error(
       `agent target identity changed while preparing the run: ` +
         `catalog={agentTargetId:${target.agentTargetId},providerId:${target.providerId}} ` +
-        `composer={agentTargetId:${composer.agentTargetId},providerId:${composer.providerId}} ` +
         `skills={source:${skillContext.source},agentTargetId:${skillContext.agentTargetId},providerId:${skillContext.providerId}}`,
     );
   }
@@ -268,13 +251,7 @@ export class AgentService implements IAgentService {
       ...(preferredAgentTargetId ? { agentTargetId: preferredAgentTargetId } : {}),
     });
     const runId = randomUUID();
-    const [composer, skillContext, appSkills] = await Promise.all([
-      loadTuttiAgentComposerOptions({
-        runtime: this.runtime,
-        agentTargetId: target.agentTargetId,
-        cwd: this.cwd,
-        env: process.env,
-      }),
+    const [skillContext, appSkills] = await Promise.all([
       loadTuttiAgentSkillContext({
         agentTargetId: target.agentTargetId,
         agentSessionId: runId,
@@ -283,16 +260,12 @@ export class AgentService implements IAgentService {
       }),
       this.skills.loadAll(),
     ]);
-    assertAgentRunContextIdentity(target, composer, skillContext);
-    const model = resolveComposerModel(composer);
-    const permissionMode = composer.permissionConfig.modes.find(
-      (mode) => mode.id === composer.permissionConfig.defaultValue,
-    );
-
+    assertAgentRunContextIdentity(target, skillContext);
     await callbacks?.onStarted?.(runId, target.agentTargetId, target.providerId);
     const output: string[] = [];
     for await (const event of this.runtime.run({
       runId,
+      agentTargetId: target.agentTargetId,
       conversationId: runId,
       sessionId: runId,
       provider: target.providerId,
@@ -301,12 +274,6 @@ export class AgentService implements IAgentService {
       cwd: this.cwd,
       prompt,
       systemPrompt: skillContext.recommendedSystemPrompt?.content,
-      model,
-      reasoning:
-        composer.reasoningConfig.currentValue || composer.reasoningConfig.defaultValue || undefined,
-      permission: permissionMode
-        ? { modeId: permissionMode.id, semantic: permissionMode.semantic }
-        : undefined,
       timeoutMs,
       skillManifest: [...skillContext.skillManifest, ...appSkills],
       metadata: { title, agentTargetId: target.agentTargetId, providerId: target.providerId },

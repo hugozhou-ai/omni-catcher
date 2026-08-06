@@ -138,7 +138,7 @@ omni-catcher/
 ## Develop
 
 Development and packaging require Node.js 22.12 or newer. The combined dependency
-constraint is set by Vite 7 (Node.js 22.12+) and `@tutti-os/agent-acp-kit` 0.5.0
+constraint is set by Vite 7 (Node.js 22.12+) and `@tutti-os/agent-acp-kit` 0.7.8
 (Node.js 22+).
 
 ```bash
@@ -166,7 +166,7 @@ the UI stays usable. `TUTTI_CLI` remains optional for issue creation.
 4. Durable data is written only under `$TUTTI_APP_DATA_DIR`.
 
 There is no lightweight LLM endpoint in Tutti, so each request streams one local Agent run
-through `@tutti-os/agent-acp-kit` 0.5.0. The app loads the Agent catalog, resolves an exact
+through `@tutti-os/agent-acp-kit` 0.7.8. The app loads the Agent catalog, resolves an exact
 `agentTargetId`, then loads target-scoped composer options and host skills. Provider ID is
 kept only as runtime metadata. The app also registers every skill in `skills/` through
 `skillManifest` and uses `$TUTTI_APP_DATA_DIR` as the Agent cwd. The Agent chooses skills and directly reads or

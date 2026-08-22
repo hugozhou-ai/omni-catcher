@@ -26,7 +26,6 @@ function catalog(defaultAgentTargetId = "team:codex-one") {
   return {
     schemaVersion: 1,
     source: "tutti-cli",
-    cliContract: "agent-id",
     defaultAgentTargetId,
     agents: [
       {
